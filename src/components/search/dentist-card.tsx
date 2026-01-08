@@ -1,0 +1,126 @@
+"use client"
+
+import Image from "next/image"
+import { Star, MapPin, Calendar, Clock, Heart, ShieldCheck, Video } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+
+interface DentistCardProps {
+    id: number
+    name: string
+    specialty: string
+    rating: number
+    reviews: number
+    location: string
+    distance: string
+    image: string
+    nextSlots: string[]
+    price: string
+    verified?: boolean
+    videoConsult?: boolean
+}
+
+export function DentistCard({
+    name,
+    specialty,
+    rating,
+    reviews,
+    location,
+    distance,
+    image,
+    nextSlots,
+    price,
+    verified = true,
+    videoConsult = true,
+}: DentistCardProps) {
+    return (
+        <Card className="hover:shadow-md transition-shadow duration-200 border-gray-100 overflow-hidden">
+            <CardContent className="p-0 flex flex-col sm:flex-row">
+                {/* Image Section */}
+                <div className="relative w-full sm:w-48 h-48 sm:h-auto flex-shrink-0 bg-gray-100">
+                    <Image
+                        src={image}
+                        alt={name}
+                        fill
+                        className="object-cover"
+                    />
+                    <button className="absolute top-3 right-3 p-2 bg-white/80 backdrop-blur-sm rounded-full text-gray-400 hover:text-red-500 transition-colors sm:hidden">
+                        <Heart className="h-4 w-4" />
+                    </button>
+                </div>
+
+                {/* Content Section */}
+                <div className="flex-1 p-5 flex flex-col justify-between">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-bold text-lg text-gray-900">{name}</h3>
+                                {verified && (
+                                    <ShieldCheck className="h-4 w-4 text-primary-500" />
+                                )}
+                            </div>
+                            <p className="text-primary-600 font-medium text-sm mb-2">{specialty}</p>
+
+                            <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
+                                <div className="flex items-center gap-1">
+                                    <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                                    <span className="font-semibold text-gray-900">{rating}</span>
+                                    <span>({reviews} reviews)</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <MapPin className="h-4 w-4" />
+                                    <span>{location}</span>
+                                    <span className="text-gray-300">•</span>
+                                    <span>{distance}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {videoConsult && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                                        <Video className="h-3 w-3 mr-1" />
+                                        Video Consult
+                                    </span>
+                                )}
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    Next available: Today
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="hidden sm:block text-right">
+                            <p className="text-xs text-gray-500 mb-1">Consultation from</p>
+                            <p className="text-xl font-bold text-gray-900">{price}</p>
+                            <button className="mt-2 p-2 text-gray-400 hover:text-red-500 transition-colors">
+                                <Heart className="h-5 w-5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Booking Slots */}
+                    <div className="flex flex-col sm:flex-row items-center gap-4 pt-4 border-t border-gray-50">
+                        <div className="flex-1 w-full flex gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
+                            {nextSlots.map((slot, index) => (
+                                <button
+                                    key={index}
+                                    className="flex-shrink-0 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:border-primary-500 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                                >
+                                    {slot}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="w-full sm:w-auto flex gap-3 items-center sm:hidden justify-between">
+                            <div>
+                                <p className="text-xs text-gray-500">From</p>
+                                <p className="text-lg font-bold text-gray-900">{price}</p>
+                            </div>
+                            <Button>Book Appointment</Button>
+                        </div>
+                        <Button className="hidden sm:flex">Book Appointment</Button>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    )
+}
