@@ -4,8 +4,7 @@ const globalForPrisma = globalThis as unknown as {
     prisma: PrismaClient | null
 }
 
-export const prisma =
-    globalForPrisma.prisma ??
+const prismaSingleton = globalForPrisma.prisma ??
     new PrismaClient({
         datasources: {
             db: {
@@ -14,4 +13,6 @@ export const prisma =
         },
     })
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prismaSingleton
+
+export default prismaSingleton
