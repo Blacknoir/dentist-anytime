@@ -1,10 +1,21 @@
 import Stripe from 'stripe'
 
-// Initialize Stripe with secret key from environment
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-    apiVersion: '2025-12-15.clover',
-    typescript: true,
-})
+// Lazy initialization of Stripe to avoid build-time errors
+let stripeInstance: Stripe | null = null
+
+function getStripe(): Stripe {
+    if (!stripeInstance) {
+        const secretKey = process.env.STRIPE_SECRET_KEY
+        if (!secretKey) {
+            throw new Error('STRIPE_SECRET_KEY environment variable is not set')
+        }
+        stripeInstance = new Stripe(secretKey, {
+            apiVersion: '2025-12-15.clover',
+            typescript: true,
+        })
+    }
+    return stripeInstance
+}
 
 // Commission percentage for platform
 const COMMISSION_RATE = 0.10 // 10%
@@ -22,6 +33,7 @@ export interface CreateCheckoutSessionParams {
  */
 export async function createCheckoutSession(params: CreateCheckoutSessionParams) {
     const { bookingId, serviceName, price, successUrl, cancelUrl } = params
+    const stripe = getStripe()
 
     const checkoutSession = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
@@ -59,6 +71,7 @@ export async function createPaymentIntent(params: {
     description: string
 }) {
     const { amount, bookingId, description } = params
+    const stripe = getStripe()
 
     const paymentIntent = await stripe.paymentIntents.create({
         amount: amount * 100, // Stripe uses cents
@@ -94,6 +107,7 @@ export async function verifyWebhookSignature(
     signature: string,
     secret: string
 ): Promise<Stripe.Event> {
+    const stripe = getStripe()
     return stripe.webhooks.constructEvent(payload, signature, secret)
 }
 
@@ -112,4 +126,4 @@ export function getCommissionRate(): number {
     return rate ? parseFloat(rate) / 100 : COMMISSION_RATE
 }
 
-export { stripe }
+export { getStripe }
