@@ -1,11 +1,6 @@
-"use client"
-
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
-import { ProfileHeader } from "@/components/dentist/profile-header"
-import { ServicesList } from "@/components/dentist/services-list"
-import { ReviewsSection } from "@/components/dentist/reviews-section"
-import { AvailabilityCalendar } from "@/components/dentist/availability-calendar"
+import { ProfileClient } from "./profile-client"
 
 export default function DentistProfilePage() {
     return (
@@ -13,7 +8,7 @@ export default function DentistProfilePage() {
             <Header />
 
             <main className="pt-20 pb-20">
-                <ProfileHeader />
+                <ProfileClient />
 
                 <div className="container mx-auto px-4 md:px-6 mt-8">
                     <div className="flex flex-col lg:flex-row gap-8">
@@ -33,13 +28,18 @@ export default function DentistProfilePage() {
                                 </p>
                             </div>
 
-                            <ServicesList />
-                            <ReviewsSection />
+                            {/* Services and Reviews are handled by ProfileClient */}
                         </div>
 
                         {/* Right Column: Booking */}
                         <div className="w-full lg:w-[400px] flex-shrink-0">
-                            <AvailabilityCalendar />
+                            {/* AvailabilityCalendar is handled by ProfileClient */}
+                            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                                <h2 className="text-xl font-bold text-gray-900 mb-4">Availability</h2>
+                                <p className="text-gray-600 leading-relaxed">
+                                    Book an appointment with Dr. Sarah Wilson using the availability calendar.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
