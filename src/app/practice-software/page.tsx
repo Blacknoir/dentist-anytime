@@ -1,10 +1,15 @@
+"use client"
+
 import PlaceholderPage from "@/components/shared/placeholder-page"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export default function PracticeSoftwarePage() {
+    const { t } = useLanguage()
+
     return (
         <PlaceholderPage
-            title="Practice Management Software"
-            description="Powerful tools to streamline your dental practice. Schedule a demo today."
+            title={t('pages.practice_software.title')}
+            description={t('pages.practice_software.desc')}
         />
     )
 }

@@ -1,10 +1,15 @@
+"use client"
+
 import PlaceholderPage from "@/components/shared/placeholder-page"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export default function TermsPage() {
+    const { t } = useLanguage()
+
     return (
         <PlaceholderPage
-            title="Terms of Service"
-            description="Please read our terms and conditions carefully before using our platform."
+            title={t('pages.terms.title')}
+            description={t('pages.terms.desc')}
         />
     )
 }

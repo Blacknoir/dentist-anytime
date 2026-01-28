@@ -1,6 +1,7 @@
 "use client"
 
 import { Calendar, Clock } from "lucide-react"
+import { useLanguage } from "@/lib/LanguageContext"
 
 interface StepTimeProps {
     selectedDate: string
@@ -8,9 +9,11 @@ interface StepTimeProps {
 }
 
 export function StepTime({ selectedDate, selectedTime }: StepTimeProps) {
+    const { t } = useLanguage()
+
     return (
         <div className="space-y-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Confirm Date & Time</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">{t('pages.booking.confirm_date_time')}</h2>
 
             <div className="bg-primary-50 rounded-xl p-6 border border-primary-100">
                 <div className="flex items-start gap-4">
@@ -18,7 +21,7 @@ export function StepTime({ selectedDate, selectedTime }: StepTimeProps) {
                         <Calendar className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-sm text-primary-600 font-medium mb-1">Date</p>
+                        <p className="text-sm text-primary-600 font-medium mb-1">{t('pages.booking.date')}</p>
                         <p className="text-lg font-bold text-gray-900">{selectedDate}</p>
                     </div>
                 </div>
@@ -30,14 +33,14 @@ export function StepTime({ selectedDate, selectedTime }: StepTimeProps) {
                         <Clock className="h-6 w-6" />
                     </div>
                     <div>
-                        <p className="text-sm text-primary-600 font-medium mb-1">Time</p>
+                        <p className="text-sm text-primary-600 font-medium mb-1">{t('pages.booking.time')}</p>
                         <p className="text-lg font-bold text-gray-900">{selectedTime}</p>
                     </div>
                 </div>
             </div>
 
             <p className="text-sm text-gray-500 text-center">
-                You can change this in the previous step if needed.
+                {t('pages.booking.change_step_hint')}
             </p>
         </div>
     )

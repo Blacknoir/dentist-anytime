@@ -2,39 +2,42 @@
 
 import { Star, ThumbsUp } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-
-const reviews = [
-    {
-        id: 1,
-        author: "Emily R.",
-        date: "2 weeks ago",
-        rating: 5,
-        text: "Dr. Wilson is amazing! She made me feel so comfortable during my whitening procedure. The results are incredible.",
-        treatment: "Teeth Whitening",
-    },
-    {
-        id: 2,
-        author: "Michael T.",
-        date: "1 month ago",
-        rating: 5,
-        text: "Best dental experience I've ever had. Very professional and the clinic is spotless. Highly recommend!",
-        treatment: "Dental Cleaning",
-    },
-    {
-        id: 3,
-        author: "Sarah L.",
-        date: "2 months ago",
-        rating: 4,
-        text: "Great service, but had to wait about 15 minutes past my appointment time. Otherwise excellent.",
-        treatment: "Checkup",
-    },
-]
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export function ReviewsSection() {
+    const { t } = useLanguage()
+
+    const reviews = [
+        {
+            id: 1,
+            author: "Emily R.",
+            date: `2 ${t('pages.profile.weeks_ago')}`,
+            rating: 5,
+            text: t('pages.profile.review1_text'),
+            treatment: t('pages.profile.teeth_whitening'),
+        },
+        {
+            id: 2,
+            author: "Michael T.",
+            date: `1 ${t('pages.profile.month_ago')}`,
+            rating: 5,
+            text: t('pages.profile.review2_text'),
+            treatment: t('pages.profile.dental_cleaning'),
+        },
+        {
+            id: 3,
+            author: "Sarah L.",
+            date: `2 ${t('pages.profile.months_ago')}`,
+            rating: 4,
+            text: t('pages.profile.review3_text'),
+            treatment: t('pages.profile.initial_consultation'),
+        },
+    ]
+
     return (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm mt-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Patient Reviews</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">{t('pages.profile.patient_reviews')}</h2>
 
             <div className="flex flex-col md:flex-row gap-8 mb-8">
                 {/* Overall Rating */}
@@ -45,7 +48,7 @@ export function ReviewsSection() {
                             <Star key={star} className="h-5 w-5 text-yellow-400 fill-yellow-400" />
                         ))}
                     </div>
-                    <span className="text-sm text-gray-500">128 reviews</span>
+                    <span className="text-sm text-gray-500">128 {t('pages.search.reviews')}</span>
                 </div>
 
                 {/* Rating Breakdown */}
@@ -103,7 +106,7 @@ export function ReviewsSection() {
                                 {review.treatment}
                             </span>
                             <button className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600">
-                                <ThumbsUp className="h-3 w-3" /> Helpful
+                                <ThumbsUp className="h-3 w-3" /> {t('pages.profile.helpful')}
                             </button>
                         </div>
                     </div>

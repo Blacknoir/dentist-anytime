@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
+import { LanguageProvider } from "@/lib/LanguageContext";
+import { AuthProvider } from "@/components/auth/auth-provider";
 
 const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta",
@@ -10,13 +12,17 @@ const plusJakarta = Plus_Jakarta_Sans({
 
 const inter = Inter({
   variable: "--font-inter",
-  subsets: ["latin"],
+  subsets: ["latin", "greek"],
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "DentistAnytime | Premium Dental Booking",
+  title: "Dentora | Premium Dental Booking",
   description: "Find and book the best dentists near you. Instant confirmation, verified reviews, and premium care.",
+  icons: {
+    icon: "/logo.jpg",
+    apple: "/logo.jpg",
+  },
 };
 
 export default function RootLayout({
@@ -25,11 +31,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="el">
       <body
         className={`${plusJakarta.variable} ${inter.variable} antialiased font-sans`}
       >
-        {children}
+        <LanguageProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

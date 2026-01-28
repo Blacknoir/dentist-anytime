@@ -5,6 +5,7 @@ import { Footer } from "@/components/layout/footer"
 import { Button } from "@/components/ui/button"
 import { Construction } from "lucide-react"
 import Link from "next/link"
+import { useLanguage } from "@/lib/LanguageContext"
 
 interface PlaceholderPageProps {
     title: string
@@ -12,6 +13,8 @@ interface PlaceholderPageProps {
 }
 
 export default function PlaceholderPage({ title, description }: PlaceholderPageProps) {
+    const { t } = useLanguage()
+
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
             <Header />
@@ -25,7 +28,7 @@ export default function PlaceholderPage({ title, description }: PlaceholderPageP
                         {description}
                     </p>
                     <Link href="/">
-                        <Button size="lg">Return Home</Button>
+                        <Button size="lg">{t('pages.return_home')}</Button>
                     </Link>
                 </div>
             </main>

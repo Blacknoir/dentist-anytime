@@ -1,13 +1,26 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Search, MapPin, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export function SearchBar() {
     const [activeTab, setActiveTab] = React.useState<"doctor" | "service">("doctor")
+    const [query, setQuery] = React.useState("")
+    const [location, setLocation] = React.useState("")
+    const { t } = useLanguage()
+    const router = useRouter()
+
+    const handleSearch = () => {
+        const params = new URLSearchParams()
+        if (query) params.set('q', query)
+        if (location) params.set('location', location)
+        router.push(`/search?${params.toString()}`)
+    }
 
     return (
         <div className="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
@@ -22,7 +35,7 @@ export function SearchBar() {
                             : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                     )}
                 >
-                    Find a Dentist
+                    {t('search.find_dentist')}
                     {activeTab === "doctor" && (
                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-500" />
                     )}
@@ -36,7 +49,7 @@ export function SearchBar() {
                             : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                     )}
                 >
-                    Find by Service
+                    {t('search.find_service')}
                     {activeTab === "service" && (
                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-500" />
                     )}
@@ -48,10 +61,13 @@ export function SearchBar() {
                 <div className="flex-1 relative group">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
                     <Input
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                         placeholder={
                             activeTab === "doctor"
-                                ? "Doctor name, specialty, or condition"
-                                : "Treatment (e.g., Whitening, Implants)"
+                                ? t('search.placeholder_doctor')
+                                : t('search.placeholder_service')
                         }
                         className="pl-10 h-12 border-gray-200 bg-gray-50 focus:bg-white transition-colors"
                     />
@@ -60,7 +76,10 @@ export function SearchBar() {
                 <div className="flex-1 relative group">
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
                     <Input
-                        placeholder="City, neighborhood, or zip code"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        placeholder={t('search.placeholder_location')}
                         className="pl-10 h-12 border-gray-200 bg-gray-50 focus:bg-white transition-colors"
                     />
                 </div>
@@ -68,13 +87,17 @@ export function SearchBar() {
                 <div className="md:w-48 relative group hidden md:block">
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
                     <Input
-                        placeholder="Any date"
+                        placeholder={t('search.placeholder_date')}
                         className="pl-10 h-12 border-gray-200 bg-gray-50 focus:bg-white transition-colors"
                     />
                 </div>
 
-                <Button size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary-500/20">
-                    Search
+                <Button
+                    onClick={handleSearch}
+                    size="lg"
+                    className="h-12 px-8 text-base shadow-lg shadow-primary-500/20"
+                >
+                    {t('search.button')}
                 </Button>
             </div>
         </div>

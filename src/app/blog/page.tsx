@@ -1,10 +1,8 @@
-import PlaceholderPage from "@/components/shared/placeholder-page"
+import { getBlogPosts } from "@/app/actions/blog"
+import BlogClient from "./blog-client"
 
-export default function BlogPage() {
-    return (
-        <PlaceholderPage
-            title="Dental Health Blog"
-            description="Tips, guides, and news about dental health and hygiene. Stay tuned for our latest articles."
-        />
-    )
+export default async function BlogPage() {
+    const posts = await getBlogPosts()
+
+    return <BlogClient posts={posts} />
 }

@@ -3,8 +3,11 @@
 import { motion } from "framer-motion"
 import { ShieldCheck, Star, Users } from "lucide-react"
 import { SearchBar } from "@/components/home/search-bar"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export function Hero() {
+    const { t } = useLanguage()
+
     return (
         <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 overflow-hidden bg-gradient-to-b from-primary-50/50 to-white">
             {/* Background Elements */}
@@ -21,11 +24,10 @@ export function Hero() {
                         transition={{ duration: 0.5 }}
                     >
                         <h1 className="text-4xl md:text-6xl font-bold text-gray-900 tracking-tight mb-6 leading-tight">
-                            Find the perfect <span className="text-primary-500">dentist</span> for your smile
+                            {t('hero.title_part1')}<span className="text-primary-500">{t('hero.title_part2')}</span>{t('hero.title_part3')}
                         </h1>
                         <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed">
-                            Book appointments instantly with top-rated dentists near you.
-                            Verified reviews, transparent pricing, and premium care.
+                            {t('hero.subtitle')}
                         </p>
                     </motion.div>
 
@@ -48,19 +50,19 @@ export function Hero() {
                             <div className="bg-green-100 p-1.5 rounded-full">
                                 <ShieldCheck className="h-5 w-5 text-green-600" />
                             </div>
-                            <span className="font-medium">Verified Dentists</span>
+                            <span className="font-medium">{t('hero.verified_dentists')}</span>
                         </div>
                         <div className="flex items-center gap-2 text-gray-600">
                             <div className="bg-yellow-100 p-1.5 rounded-full">
                                 <Star className="h-5 w-5 text-yellow-600" />
                             </div>
-                            <span className="font-medium">4.9/5 Average Rating</span>
+                            <span className="font-medium">{t('hero.rating')}</span>
                         </div>
                         <div className="flex items-center gap-2 text-gray-600">
                             <div className="bg-blue-100 p-1.5 rounded-full">
                                 <Users className="h-5 w-5 text-blue-600" />
                             </div>
-                            <span className="font-medium">1M+ Happy Patients</span>
+                            <span className="font-medium">{t('hero.happy_patients')}</span>
                         </div>
                     </motion.div>
                 </div>

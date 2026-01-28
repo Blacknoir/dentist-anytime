@@ -8,14 +8,21 @@ import { BookingSteps } from "@/components/booking/booking-steps"
 import { StepService } from "@/components/booking/step-service"
 import { StepTime } from "@/components/booking/step-time"
 import { StepInfo, type PatientFormData } from "@/components/booking/step-info"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export default function BookingPage() {
+    const { t } = useLanguage()
     const router = useRouter()
     const [currentStep, setCurrentStep] = React.useState(1)
+
+    const formatTime = (time: string) => {
+        return time.replace("AM", t('time.am')).replace("PM", t('time.pm'))
+    }
+
     const [bookingData, setBookingData] = React.useState({
         service: null as string | null,
-        date: "Wed, Oct 14",
-        time: "10:00 AM",
+        date: t('pages.booking.mock_date').split(' • ')[0],
+        time: t('pages.booking.mock_date').split(' • ')[1],
         patient: null as PatientFormData | null,
     })
 
@@ -45,7 +52,7 @@ export default function BookingPage() {
         <div className="min-h-screen bg-gray-50 flex flex-col items-center py-12 px-4">
             <div className="w-full max-w-2xl bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="bg-white border-b border-gray-100 p-6">
-                    <h1 className="text-2xl font-bold text-center text-gray-900">Book Appointment</h1>
+                    <h1 className="text-2xl font-bold text-center text-gray-900">{t('pages.booking.title')}</h1>
                     <BookingSteps currentStep={currentStep} />
                 </div>
 
@@ -70,24 +77,24 @@ export default function BookingPage() {
                     )}
                     {currentStep === 4 && (
                         <div className="space-y-6">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4">Review & Confirm</h2>
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">{t('pages.booking.review_confirm')}</h2>
                             <div className="bg-gray-50 rounded-xl p-6 space-y-4">
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Service</span>
-                                    <span className="font-medium text-gray-900">Dental Checkup</span>
+                                    <span className="text-gray-500">{t('pages.booking.service')}</span>
+                                    <span className="font-medium text-gray-900">{t('pages.booking.mock_service')}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Date & Time</span>
+                                    <span className="text-gray-500">{t('pages.booking.date_time')}</span>
                                     <span className="font-medium text-gray-900">{bookingData.date}, {bookingData.time}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-gray-500">Patient</span>
+                                    <span className="text-gray-500">{t('pages.booking.patient')}</span>
                                     <span className="font-medium text-gray-900">
                                         {bookingData.patient?.firstName} {bookingData.patient?.lastName}
                                     </span>
                                 </div>
                                 <div className="border-t border-gray-200 pt-4 flex justify-between items-center">
-                                    <span className="font-semibold text-gray-900">Total</span>
+                                    <span className="font-semibold text-gray-900">{t('pages.booking.total')}</span>
                                     <span className="text-xl font-bold text-primary-600">$50.00</span>
                                 </div>
                             </div>
@@ -102,19 +109,19 @@ export default function BookingPage() {
                         disabled={currentStep === 1}
                         className={currentStep === 1 ? "invisible" : ""}
                     >
-                        <ChevronLeft className="h-4 w-4 mr-2" /> Back
+                        <ChevronLeft className="h-4 w-4 mr-2" /> {t('pages.booking.back')}
                     </Button>
 
                     {currentStep === 3 ? (
                         <Button onClick={handleNext}>
-                            Continue <ChevronRight className="h-4 w-4 ml-2" />
+                            {t('pages.booking.continue')} <ChevronRight className="h-4 w-4 ml-2" />
                         </Button>
                     ) : (
                         <Button
                             onClick={handleNext}
                             disabled={currentStep === 1 && !bookingData.service}
                         >
-                            {currentStep === 4 ? "Confirm Booking" : "Continue"}
+                            {currentStep === 4 ? t('pages.booking.confirm_booking') : t('pages.booking.continue')}
                             {currentStep !== 4 && <ChevronRight className="h-4 w-4 ml-2" />}
                         </Button>
                     )}

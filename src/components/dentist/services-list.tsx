@@ -1,6 +1,6 @@
 "use client"
 
-import { Check, Info } from "lucide-react"
+import { Info } from "lucide-react"
 import {
     Accordion,
     AccordionContent,
@@ -8,40 +8,33 @@ import {
     AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Button } from "@/components/ui/button"
+import { useLanguage } from "@/lib/LanguageContext"
 
-const services = [
-    {
-        category: "Consultations",
-        items: [
-            { name: "Initial Consultation", price: "$50", duration: "30 min" },
-            { name: "Video Consultation", price: "$40", duration: "20 min" },
-        ],
-    },
-    {
-        category: "Preventive Care",
-        items: [
-            { name: "Dental Cleaning", price: "$120", duration: "45 min" },
-            { name: "Fluoride Treatment", price: "$40", duration: "15 min" },
-            { name: "Dental Sealants", price: "$60", duration: "30 min" },
-        ],
-    },
-    {
-        category: "Cosmetic Dentistry",
-        items: [
-            { name: "Teeth Whitening", price: "$350", duration: "60 min" },
-            { name: "Porcelain Veneers", price: "$900", duration: "90 min" },
-            { name: "Invisalign Consultation", price: "Free", duration: "30 min" },
-        ],
-    },
-]
+interface ServicesListProps {
+    services: any[]
+}
 
-export function ServicesList() {
+export function ServicesList({ services }: ServicesListProps) {
+    const { t } = useLanguage()
+
+    // For now, we'll group all services under one category since our DB schema is simple
+    const groupedServices = [
+        {
+            category: t('pages.profile.services_pricing'),
+            items: services.map(s => ({
+                name: s.name,
+                price: `€${s.price}`,
+                duration: `${s.duration} ${t('time.min')}`
+            }))
+        }
+    ]
+
     return (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Services & Pricing</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">{t('pages.profile.services_pricing')}</h2>
 
             <Accordion type="single" collapsible className="w-full" defaultValue="item-0">
-                {services.map((category, index) => (
+                {groupedServices.map((category, index) => (
                     <AccordionItem key={index} value={`item-${index}`} className="border-b-0 mb-2">
                         <AccordionTrigger className="hover:no-underline bg-gray-50 px-4 rounded-lg text-gray-900 font-semibold">
                             {category.category}
@@ -60,7 +53,7 @@ export function ServicesList() {
                                         <div className="flex items-center gap-4">
                                             <span className="font-bold text-gray-900">{item.price}</span>
                                             <Button size="sm" variant="outline" className="h-8">
-                                                Book
+                                                {t('pages.profile.book')}
                                             </Button>
                                         </div>
                                     </div>

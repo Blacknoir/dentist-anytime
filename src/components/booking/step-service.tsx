@@ -2,23 +2,26 @@
 
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useLanguage } from "@/lib/LanguageContext"
 
 interface StepServiceProps {
     selectedService: string | null
     onSelect: (service: string) => void
 }
 
-const services = [
-    { id: "checkup", name: "Dental Checkup", price: "$50", duration: "30 min" },
-    { id: "cleaning", name: "Teeth Cleaning", price: "$120", duration: "45 min" },
-    { id: "whitening", name: "Teeth Whitening", price: "$350", duration: "60 min" },
-    { id: "emergency", name: "Emergency Exam", price: "$80", duration: "30 min" },
-]
-
 export function StepService({ selectedService, onSelect }: StepServiceProps) {
+    const { t } = useLanguage()
+
+    const services = [
+        { id: "checkup", name: t('popular.cleaning_title'), price: "$50", duration: `30 ${t('time.min')}` },
+        { id: "cleaning", name: t('popular.cleaning_title'), price: "$120", duration: `45 ${t('time.min')}` },
+        { id: "whitening", name: t('popular.whitening_title'), price: "$350", duration: `60 ${t('time.min')}` },
+        { id: "emergency", name: t('popular.emergency_title'), price: "$80", duration: `30 ${t('time.min')}` },
+    ]
+
     return (
         <div className="space-y-4">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Select a Service</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">{t('pages.booking.step1')}</h2>
             <div className="grid grid-cols-1 gap-4">
                 {services.map((service) => (
                     <button

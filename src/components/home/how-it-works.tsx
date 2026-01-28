@@ -2,38 +2,41 @@
 
 import { motion } from "framer-motion"
 import { Search, CalendarCheck, Star } from "lucide-react"
-
-const steps = [
-    {
-        icon: Search,
-        title: "Find your specialist",
-        description: "Search by specialty, location, or insurance. Filter by verified reviews and availability.",
-        color: "bg-blue-100 text-blue-600",
-    },
-    {
-        icon: CalendarCheck,
-        title: "Book instantly",
-        description: "Choose a time that works for you. No phone calls, no waiting on hold. 24/7 booking.",
-        color: "bg-green-100 text-green-600",
-    },
-    {
-        icon: Star,
-        title: "Get better care",
-        description: "Visit the dentist and leave a review. Your feedback helps others find great care.",
-        color: "bg-yellow-100 text-yellow-600",
-    },
-]
+import { useLanguage } from "@/lib/LanguageContext"
 
 export function HowItWorks() {
+    const { t } = useLanguage()
+
+    const steps = [
+        {
+            icon: Search,
+            title: t('how_it_works.step1_title'),
+            description: t('how_it_works.step1_desc'),
+            color: "bg-blue-100 text-blue-600",
+        },
+        {
+            icon: CalendarCheck,
+            title: t('how_it_works.step2_title'),
+            description: t('how_it_works.step2_desc'),
+            color: "bg-green-100 text-green-600",
+        },
+        {
+            icon: Star,
+            title: t('how_it_works.step3_title'),
+            description: t('how_it_works.step3_desc'),
+            color: "bg-yellow-100 text-yellow-600",
+        },
+    ]
+
     return (
         <section className="py-20 bg-white">
             <div className="container mx-auto px-4 md:px-6">
                 <div className="text-center max-w-2xl mx-auto mb-16">
                     <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4 tracking-tight">
-                        How DentistAnytime Works
+                        {t('how_it_works.title')}
                     </h2>
                     <p className="text-lg text-gray-600">
-                        We make it simple to take care of your smile. Three easy steps to your next appointment.
+                        {t('how_it_works.subtitle')}
                     </p>
                 </div>
 
