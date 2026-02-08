@@ -15,13 +15,25 @@ export async function createBooking(formData: {
         throw new Error("You must be logged in to book an appointment")
     }
 
+    const dentist = await prisma.dentistProfile.findUnique({
+        where: { id: formData.dentistProfileId },
+        select: { commissionRate: true }
+    })
+
+    const price = 5000 // In cents (50.00 EUR) - In a real app this would come from the service
+    const commissionAmount = (price * (dentist?.commissionRate || 10)) / 100 / 100 // Convert to EUR
+
     const booking = await prisma.booking.create({
         data: {
             patientId: session.user.id,
             dentistProfileId: formData.dentistProfileId,
             serviceName: formData.serviceName,
             date: formData.date,
-            status: "PENDING"
+            status: "CONFIRMED",
+            paymentStatus: "COMPLETED",
+            stripePaymentId: (formData as any).stripePaymentId,
+            price: price / 100, // Store in EUR
+            commissionAmount: commissionAmount
         }
     })
 

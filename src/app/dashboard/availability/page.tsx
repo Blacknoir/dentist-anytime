@@ -8,5 +8,5 @@ export default async function AvailabilityPage() {
         return <div>Profile not found.</div>
     }
 
-    return <AvailabilityForm initialData={profile.availability} />
+    return <AvailabilityForm initialData={profile.availability} exceptions={(profile as any).exceptions} />
 }

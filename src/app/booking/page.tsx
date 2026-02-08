@@ -8,6 +8,8 @@ import { BookingSteps } from "@/components/booking/booking-steps"
 import { StepService } from "@/components/booking/step-service"
 import { StepTime } from "@/components/booking/step-time"
 import { StepInfo, type PatientFormData } from "@/components/booking/step-info"
+import { StripePayment } from "@/components/booking/stripe-payment"
+import { createBooking } from "@/app/actions/booking"
 import { useLanguage } from "@/lib/LanguageContext"
 
 export default function BookingPage() {
@@ -26,16 +28,39 @@ export default function BookingPage() {
         patient: null as PatientFormData | null,
     })
 
-    const handleNext = () => {
+    const [paymentIntentId, setPaymentIntentId] = React.useState<string | null>(null)
+    const [isSubmitting, setIsSubmitting] = React.useState(false)
+
+    // Mock Dentist ID - In a real app, this would be passed via URL params or state
+    const dentistProfileId = "cm6u2q7j90000ux2k8y0o3dnm"
+
+    const handleNext = async () => {
         if (currentStep === 3) {
-            // Trigger form submission from outside (handled by ref or state in real app)
-            // For this demo, we'll rely on the form's onSubmit prop
             const form = document.getElementById("patient-info-form") as HTMLFormElement
             if (form) form.requestSubmit()
         } else if (currentStep === 4) {
-            router.push("/booking/success")
+            setCurrentStep(5)
+        } else if (currentStep === 5) {
+            // This is handled by StripePayment onSuccess
         } else {
             setCurrentStep((prev) => prev + 1)
+        }
+    }
+
+    const handlePaymentSuccess = async (id: string) => {
+        setPaymentIntentId(id)
+        setIsSubmitting(true)
+        try {
+            await createBooking({
+                dentistProfileId,
+                serviceName: bookingData.service || "General Checkup",
+                date: new Date(), // Use selected date in real app
+                ...({ stripePaymentId: id } as any)
+            })
+            router.push("/booking/success")
+        } catch (error) {
+            console.error("Booking failed:", error)
+            setIsSubmitting(false)
         }
     }
 
@@ -100,6 +125,19 @@ export default function BookingPage() {
                             </div>
                         </div>
                     )}
+                    {currentStep === 5 && (
+                        <div className="space-y-6">
+                            <h2 className="text-xl font-bold text-gray-900 mb-4">Complete Payment</h2>
+                            <StripePayment
+                                amount={5000} // €50.00
+                                dentistProfileId={dentistProfileId}
+                                onSuccess={handlePaymentSuccess}
+                            />
+                            <p className="text-sm text-gray-500 text-center mt-6">
+                                Your payment is processed securely via Stripe.
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-gray-50 p-6 border-t border-gray-100 flex justify-between items-center">
@@ -119,10 +157,10 @@ export default function BookingPage() {
                     ) : (
                         <Button
                             onClick={handleNext}
-                            disabled={currentStep === 1 && !bookingData.service}
+                            disabled={(currentStep === 1 && !bookingData.service) || currentStep === 5 || isSubmitting}
                         >
-                            {currentStep === 4 ? t('pages.booking.confirm_booking') : t('pages.booking.continue')}
-                            {currentStep !== 4 && <ChevronRight className="h-4 w-4 ml-2" />}
+                            {currentStep === 4 ? "Proceed to Payment" : t('pages.booking.continue')}
+                            {currentStep < 4 && <ChevronRight className="h-4 w-4 ml-2" />}
                         </Button>
                     )}
                 </div>

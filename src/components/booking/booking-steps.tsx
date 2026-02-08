@@ -16,6 +16,7 @@ export function BookingSteps({ currentStep }: BookingStepsProps) {
         { id: 2, name: t('pages.booking.step2') },
         { id: 3, name: t('pages.booking.step3') },
         { id: 4, name: t('pages.booking.step4') },
+        { id: 5, name: "Payment" },
     ]
 
     return (

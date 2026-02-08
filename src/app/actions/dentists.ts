@@ -32,8 +32,9 @@ export async function getDentists(query?: string, specialty?: string, maxPrice?:
         include: {
             user: true,
             services: true,
-            availability: true
-        }
+            availability: true,
+            exceptions: true
+        } as any
     })
 
     return dentists
@@ -47,8 +48,9 @@ export async function getDentistById(id: string) {
         include: {
             user: true,
             services: true,
-            availability: true
-        }
+            availability: true,
+            exceptions: true
+        } as any
     })
 
     return dentist

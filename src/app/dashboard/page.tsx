@@ -1,4 +1,5 @@
 import { getDashboardStats } from "@/app/actions/dashboard"
+import { createStripeConnectAccount } from "@/app/actions/stripe" // Import the action
 import {
     Users,
     Calendar,
@@ -9,7 +10,8 @@ import {
     Search,
     Stethoscope,
     ShieldAlert,
-    AlertCircle
+    AlertCircle,
+    CreditCard
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -77,31 +79,81 @@ export default async function DashboardPage() {
 
         return (
             <div className="space-y-8">
-                {!isVerified && (
+                {/* Status Notification */}
+                <div className="flex flex-col sm:flex-row gap-4">
                     <div className={cn(
-                        "p-4 md:p-6 rounded-2xl border flex flex-col sm:flex-row items-start gap-4",
-                        isPending ? "bg-blue-50 border-blue-100 text-blue-800" : "bg-red-50 border-red-100 text-red-800"
+                        "flex-1 p-4 md:p-6 rounded-2xl border flex items-start gap-4",
+                        (stats as any).todayAvailability?.isClosed
+                            ? "bg-red-50 border-red-100 text-red-800"
+                            : "bg-green-50 border-green-100 text-green-800 shadow-sm shadow-green-100"
                     )}>
                         <div className={cn(
                             "p-3 rounded-xl",
-                            isPending ? "bg-blue-100" : "bg-red-100"
+                            (stats as any).todayAvailability?.isClosed ? "bg-red-100" : "bg-green-100"
                         )}>
-                            {isPending ? <Clock className="h-6 w-6" /> : <ShieldAlert className="h-6 w-6" />}
+                            <Clock className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold mb-1">
+                                {(stats as any).todayAvailability?.isClosed ? "Clinic Closed Today" : "Clinic Open Today"}
+                            </h3>
+                            <p className="text-sm opacity-90">
+                                {(stats as any).todayAvailability?.isClosed
+                                    ? "Today is marked as non-available. No patients can book for today."
+                                    : `You are open today from ${(stats as any).todayAvailability.startTime} to ${(stats as any).todayAvailability.endTime}.`}
+                            </p>
+                        </div>
+                        <Button variant="ghost" size="sm" className="ml-auto rounded-full font-bold uppercase text-[10px] tracking-widest text-current hover:bg-current/10" asChild>
+                            <Link href="/dashboard/availability">Change</Link>
+                        </Button>
+                    </div>
+
+                    {!isVerified && (
+                        <div className={cn(
+                            "flex-1 p-4 md:p-6 rounded-2xl border flex items-start gap-4",
+                            isPending ? "bg-blue-50 border-blue-100 text-blue-800" : "bg-red-50 border-red-100 text-red-800"
+                        )}>
+                            <div className={cn(
+                                "p-3 rounded-xl",
+                                isPending ? "bg-blue-100" : "bg-red-100"
+                            )}>
+                                {isPending ? <Clock className="h-6 w-6" /> : <ShieldAlert className="h-6 w-6" />}
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold mb-1">
+                                    {isPending ? "Profile Under Review" : "Verification Required"}
+                                </h3>
+                                <p className="text-sm opacity-90 mb-3">
+                                    {isPending
+                                        ? "Your documents are being reviewed."
+                                        : "Upload your professional degree."}
+                                </p>
+                                {!isPending && (
+                                    <Button size="sm" variant="destructive" asChild className="h-8 text-xs">
+                                        <Link href="/dashboard/profile">Submit</Link>
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Stripe Connect Prompt */}
+                {isVerified && !(stats as any).isStripeConnected && (
+                    <div className="p-4 md:p-6 rounded-2xl border bg-indigo-50 border-indigo-100 text-indigo-800 flex flex-col sm:flex-row items-start gap-4">
+                        <div className="p-3 rounded-xl bg-indigo-100">
+                            <CreditCard className="h-6 w-6" />
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-lg font-bold mb-1">
-                                {isPending ? "Profile Under Review" : "Verification Required"}
-                            </h3>
+                            <h3 className="text-lg font-bold mb-1">Setup Payments</h3>
                             <p className="text-sm opacity-90 mb-4">
-                                {isPending
-                                    ? "Your verification documents are being reviewed. Your profile will be visible to patients once approved."
-                                    : "To start receiving bookings, you must upload your professional degree for verification."}
+                                To receive payments from bookings, you need to connect your Stripe account.
                             </p>
-                            {!isPending && (
-                                <Button size="sm" variant="destructive" asChild>
-                                    <Link href="/dashboard/profile">Submit Verification</Link>
+                            <form action={createStripeConnectAccount}>
+                                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none">
+                                    Connect Stripe
                                 </Button>
-                            )}
+                            </form>
                         </div>
                     </div>
                 )}

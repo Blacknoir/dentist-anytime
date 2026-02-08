@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
+import { revalidatePath } from "next/cache"
 
 export async function getDashboardStats() {
     const session = await auth()
@@ -49,6 +50,13 @@ export async function getDashboardStats() {
             isPendingVerification: (dentist as any).isPendingVerification,
             totalPatients: 1250, // Mock
             revenue: 12500, // Mock
+
+            // Availability Status
+            todayAvailability: await getTodayAvailability(dentist.id),
+
+            // Stripe Status
+            stripeAccountId: (dentist as any).stripeAccountId,
+            isStripeConnected: !!(dentist as any).stripeAccountId,
         }
     } else {
         // Patient Stats
@@ -84,9 +92,86 @@ export async function getDentistProfile() {
         include: {
             user: true,
             services: true,
-            availability: true
+            availability: true,
+            exceptions: {
+                where: {
+                    date: {
+                        gte: new Date()
+                    }
+                }
+            }
+        } as any
+    })
+}
+
+export async function updateDayAvailability(dateString: string, data: { isClosed: boolean, slots: { startTime: string, endTime: string }[] }) {
+    const session = await auth()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const dentist = await (prisma as any).dentistProfile.findUnique({
+        where: { userId: session.user.id }
+    })
+
+    if (!dentist) throw new Error("Dentist not found")
+
+    // The dateString is in YYYY-MM-DD format, we want to store it as a UTC midnight Date
+    const normalizedDate = new Date(dateString + 'T00:00:00Z')
+
+    // Delete existing records for this day
+    await (prisma as any).availabilityException.deleteMany({
+        where: {
+            dentistProfileId: dentist.id,
+            date: normalizedDate
         }
     })
+
+    if (data.isClosed) {
+        // Create one "Closed" exception
+        await (prisma as any).availabilityException.create({
+            data: {
+                dentistProfileId: dentist.id,
+                date: normalizedDate,
+                isClosed: true
+            }
+        })
+    } else if (data.slots && data.slots.length > 0) {
+        // Create an exception for each slot
+        await (prisma as any).availabilityException.createMany({
+            data: data.slots.map(slot => ({
+                dentistProfileId: dentist.id,
+                date: normalizedDate,
+                isClosed: false,
+                startTime: slot.startTime,
+                endTime: slot.endTime
+            }))
+        })
+    }
+
+    revalidatePath(`/dentist/${dentist.id}`)
+    revalidatePath('/dashboard/availability')
+}
+
+export async function resetDayAvailability(dateString: string) {
+    const session = await auth()
+    if (!session?.user?.id) throw new Error("Unauthorized")
+
+    const dentist = await prisma.dentistProfile.findUnique({
+        where: { userId: session.user.id }
+    })
+
+    if (!dentist) throw new Error("Dentist not found")
+
+    const normalizedDate = new Date(dateString + 'T00:00:00Z')
+
+    await (prisma as any).availabilityException.deleteMany({
+        where: {
+            dentistProfileId: dentist.id,
+            date: normalizedDate
+        }
+    })
+
+    revalidatePath(`/dentist/${dentist.id}`)
+    revalidatePath('/dashboard/availability')
 }
 
 export async function getDentistBookings() {
@@ -143,7 +228,7 @@ export async function updateDentistAvailability(data: any[]) {
         where: { dentistProfileId: dentist.id }
     })
 
-    return await prisma.availability.createMany({
+    await prisma.availability.createMany({
         data: data.map(a => ({
             dentistProfileId: dentist.id,
             dayOfWeek: a.dayOfWeek,
@@ -151,6 +236,10 @@ export async function updateDentistAvailability(data: any[]) {
             endTime: a.endTime
         }))
     })
+
+    revalidatePath(`/dentist/${dentist.id}`)
+    revalidatePath('/dashboard/availability')
+    revalidatePath('/dashboard')
 }
 
 export async function updateDentistServices(data: any[]) {
@@ -176,4 +265,51 @@ export async function updateDentistServices(data: any[]) {
             duration: s.duration
         }))
     })
+}
+
+async function getTodayAvailability(dentistId: string) {
+    const today = new Date()
+    const todayString = today.toISOString().split('T')[0]
+    const dayOfWeek = today.getDay()
+
+    // 1. Check exceptions
+    const exceptions = await (prisma as any).availabilityException.findMany({
+        where: {
+            dentistProfileId: dentistId,
+            date: {
+                gte: new Date(todayString + 'T00:00:00Z'),
+                lt: new Date(todayString + 'T23:59:59Z'),
+            }
+        }
+    })
+
+    if (exceptions.length > 0) {
+        if (exceptions.some((e: any) => e.isClosed)) return { isClosed: true }
+        // Sort and return slots
+        const sorted = exceptions.sort((a: any, b: any) => (a.startTime || "").localeCompare(b.startTime || ""))
+        return {
+            isClosed: false,
+            startTime: sorted[0].startTime,
+            endTime: sorted[sorted.length - 1].endTime,
+            isMultiple: exceptions.length > 1
+        }
+    }
+
+    // 2. Check weekly availability
+    const weekly = await prisma.availability.findMany({
+        where: {
+            dentistProfileId: dentistId,
+            dayOfWeek: dayOfWeek
+        }
+    })
+
+    if (weekly.length === 0) return { isClosed: true }
+
+    const sortedWeekly = weekly.sort((a, b) => a.startTime.localeCompare(b.startTime))
+    return {
+        isClosed: false,
+        startTime: sortedWeekly[0].startTime,
+        endTime: sortedWeekly[sortedWeekly.length - 1].endTime,
+        isMultiple: weekly.length > 1
+    }
 }

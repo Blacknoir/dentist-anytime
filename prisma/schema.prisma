@@ -45,6 +45,8 @@ model DentistProfile {
   availability    Availability[]
   bookings        Booking[]
   posts           BlogPost[]
+  stripeAccountId String?        // Stripe Connected Account ID
+  exceptions      AvailabilityException[]
 }
 
 model Service {
@@ -64,6 +66,16 @@ model Availability {
   dayOfWeek        Int            // 0-6 (Sunday-Saturday)
   startTime        String         // e.g., "09:00"
   endTime          String         // e.g., "17:00"
+}
+
+model AvailabilityException {
+  id               String         @id @default(cuid())
+  dentistProfileId String
+  dentistProfile   DentistProfile @relation(fields: [dentistProfileId], references: [id], onDelete: Cascade)
+  date             DateTime       // Specific date
+  isClosed         Boolean        @default(true) // Whether the clinic is closed on this date
+  startTime        String?        // Custom start time if not closed
+  endTime          String?        // Custom end time if not closed
 }
 
 model Booking {
