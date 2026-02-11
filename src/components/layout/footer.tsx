@@ -14,7 +14,7 @@ export function Footer() {
     return (
         <footer className="bg-gray-50 border-t border-gray-200 pt-16 pb-8">
             <div className="container mx-auto px-4 md:px-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 mb-12">
                     {/* Brand Column */}
                     <div className="space-y-4">
                         <Logo />
@@ -22,17 +22,42 @@ export function Footer() {
                             {t('footer.description')}
                         </p>
                         <div className="flex items-center gap-4 pt-2">
-                            <Link href="#" className="text-gray-400 hover:text-primary-500 transition-colors">
+                            <Link
+                                href="https://www.facebook.com/share/1HoEkjizzv/?mibextid=wwXIfr"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-400 hover:text-primary-500 transition-colors"
+                            >
                                 <Facebook className="h-5 w-5" />
                             </Link>
-                            <Link href="#" className="text-gray-400 hover:text-primary-500 transition-colors">
-                                <Twitter className="h-5 w-5" />
-                            </Link>
-                            <Link href="#" className="text-gray-400 hover:text-primary-500 transition-colors">
+                            <Link
+                                href="https://www.instagram.com/dentora_app?igsh=ajVvZ2M3OW93Ynli&utm_source=qr"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-400 hover:text-primary-500 transition-colors"
+                            >
                                 <Instagram className="h-5 w-5" />
                             </Link>
-                            <Link href="#" className="text-gray-400 hover:text-primary-500 transition-colors">
-                                <Linkedin className="h-5 w-5" />
+                            <Link
+                                href="https://www.tiktok.com/@dentora.app?_r=1&_t=ZN-93l4UfI4irm"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-400 hover:text-primary-500 transition-colors"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="h-5 w-5"
+                                >
+                                    <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+                                </svg>
                             </Link>
                         </div>
                     </div>
@@ -94,18 +119,6 @@ export function Footer() {
                                 </Link>
                             </li>
                         </ul>
-                    </div>
-
-                    {/* Newsletter */}
-                    <div>
-                        <h3 className="font-semibold text-gray-900 mb-4">{t('footer.stay_updated')}</h3>
-                        <p className="text-gray-500 text-sm mb-4">
-                            {t('footer.newsletter_desc')}
-                        </p>
-                        <div className="flex flex-col gap-2">
-                            <Input placeholder={t('footer.email_placeholder')} className="bg-white" />
-                            <Button>{t('footer.subscribe')}</Button>
-                        </div>
                     </div>
                 </div>
 
