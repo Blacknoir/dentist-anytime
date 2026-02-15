@@ -22,7 +22,7 @@ export default function PrivacyPage() {
             subtitle: "We are committed to protecting your personal information and your right to privacy.",
             last_updated: "Last Updated: October 24, 2025",
             intro_title: "1. Introduction",
-            intro_text1: "Welcome to Dentora (\"Company\", \"we\", \"our\", \"us\"). We appreciate that you trust us with your personal information. If you have any questions or concerns about this privacy notice, or our practices with regards to your personal information, please contact us at privacy@dentora.com.",
+            intro_text1: "Welcome to Dentora (\"Company\", \"we\", \"our\", \"us\"). We appreciate that you trust us with your personal information. If you have any questions or concerns about this privacy notice, or our practices with regards to your personal information, please contact us at dentoraservices@gmail.com.",
             intro_text2: "This privacy notice describes how we might use your information if you:",
             intro_list1: "Visit our website at dentora.com",
             intro_list2: "Engage with us in other related ways, including any sales, marketing, or events",
@@ -50,8 +50,8 @@ export default function PrivacyPage() {
             sharing_interest_title: "Legitimate Interests",
             sharing_interest_text: "We may process your data when it is reasonably necessary to achieve our legitimate business interests.",
             contact_title: "5. Contact Us",
-            contact_text: "If you have questions or comments about this policy, you may email us at privacy@dentora.com or by post to:",
-            address_text: "New York, NY 10012\nUnited States"
+            contact_text: "If you have questions or comments about this policy, you may email us at dentoraservices@gmail.com or by post to:",
+            address_text: "Katerini, PC 60100\nGreece"
         },
         el: {
             legal: "Νομικά",
@@ -59,7 +59,7 @@ export default function PrivacyPage() {
             subtitle: "Δεσμευόμαστε να προστατεύουμε τα προσωπικά σας δεδομένα και το δικαίωμά σας στο απόρρητο.",
             last_updated: "Τελευταία Ενημέρωση: 24 Οκτωβρίου 2025",
             intro_title: "1. Εισαγωγή",
-            intro_text1: "Καλώς ήρθατε στο Dentora («Εταιρεία», «εμείς», «μας»). Εκτιμούμε που μας εμπιστεύεστε τα προσωπικά σας δεδομένα. Εάν έχετε ερωτήσεις ή ανησυχίες σχετικά με αυτήν την ειδοποίηση απορρήτου ή τις πρακτικές μας όσον αφορά τα προσωπικά σας δεδομένα, επικοινωνήστε μαζί μας στο privacy@dentora.com.",
+            intro_text1: "Καλώς ήρθατε στο Dentora («Εταιρεία», «εμείς», «μας»). Εκτιμούμε που μας εμπιστεύεστε τα προσωπικά σας δεδομένα. Εάν έχετε ερωτήσεις ή ανησυχίες σχετικά με αυτήν την ειδοποίηση απορρήτου ή τις πρακτικές μας όσον αφορά τα προσωπικά σας δεδομένα, επικοινωνήστε μαζί μας στο dentoraservices@gmail.com.",
             intro_text2: "Αυτή η ειδοποίηση απορρήτου περιγράφει πώς ενδέχεται να χρησιμοποιήσουμε τις πληροφορίες σας εάν εσείς:",
             intro_list1: "Επισκεφθείτε τον ιστότοπό μας στο dentora.com",
             intro_list2: "Αλληλεπιδράσετε μαζί μας με άλλους σχετικούς τρόπους, συμπεριλαμβανομένων πωλήσεων, μάρκετινγκ ή εκδηλώσεων",
@@ -87,8 +87,8 @@ export default function PrivacyPage() {
             sharing_interest_title: "Νόμιμα Συμφέροντα",
             sharing_interest_text: "Μπορούμε να επεξεργαστούμε τα δεδομένα σας όταν είναι εύλογα απαραίτητο για την επίτευξη των νόμιμων επιχειρηματικών μας συμφερόντων.",
             contact_title: "5. Επικοινωνήστε Μαζί Μας",
-            contact_text: "Εάν έχετε ερωτήσεις ή σχόλια σχετικά με αυτήν την πολιτική, μπορείτε να μας στείλετε email στο privacy@dentora.com ή ταχυδρομικά στη διεύθυνση:",
-            address_text: "Nέα Υόρκη, NY 10012\nΗνωμένες Πολιτείες"
+            contact_text: "Εάν έχετε ερωτήσεις ή σχόλια σχετικά με αυτήν την πολιτική, μπορείτε να μας στείλετε email στο dentoraservices@gmail.com ή ταχυδρομικά στη διεύθυνση:",
+            address_text: "Κατερίνη, ΤΚ 60100\nΕλλάδα"
         }
     }
 
@@ -235,7 +235,7 @@ export default function PrivacyPage() {
                             </p>
                             <address className="not-italic text-gray-600 bg-gray-50 p-6 rounded-xl border border-gray-100 inline-block">
                                 <strong>Dentora Inc.</strong><br />
-                                123 Dental Aveneue<br />
+                                Antoniadou 18<br />
                                 {text.address_text}
                             </address>
                         </section>

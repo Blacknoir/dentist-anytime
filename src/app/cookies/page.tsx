@@ -35,7 +35,7 @@ export default function CookiesPage() {
             marketing_text: "These cookies may be set through our site by our advertising partners. They may be used by those companies to build a profile of your interests and show you relevant adverts on other sites.",
             save_btn: "Save Preferences",
             more_title: "More Information",
-            more_text: "For more information about how we use cookies and your choices, please contact us at privacy@dentora.com."
+            more_text: "For more information about how we use cookies and your choices, please contact us at dentoraservices@gmail.com."
         },
         el: {
             legal: "Νομικά",
@@ -55,7 +55,7 @@ export default function CookiesPage() {
             marketing_text: "Αυτά τα cookies μπορεί να οριστούν μέσω του ιστότοπού μας από τους διαφημιστικούς συνεργάτες μας. Μπορεί να χρησιμοποιηθούν από αυτές τις εταιρείες για να δημιουργήσουν ένα προφίλ των ενδιαφερόντων σας και να σας δείξουν σχετικές διαφημίσεις σε άλλους ιστότοπους.",
             save_btn: "Αποθήκευση Προτιμήσεων",
             more_title: "Περισσότερες Πληροφορίες",
-            more_text: "Για περισσότερες πληροφορίες σχετικά με το πώς χρησιμοποιούμε τα cookies και τις επιλογές σας, επικοινωνήστε μαζί μας στο privacy@dentora.com."
+            more_text: "Για περισσότερες πληροφορίες σχετικά με το πώς χρησιμοποιούμε τα cookies και τις επιλογές σας, επικοινωνήστε μαζί μας στο dentoraservices@gmail.com."
         }
     }
 
