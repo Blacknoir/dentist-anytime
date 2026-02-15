@@ -137,6 +137,9 @@ export function Footer() {
                         <Link href="/cookies" className="text-gray-400 hover:text-gray-600 text-sm transition-colors">
                             {t('footer.cookies')}
                         </Link>
+                        <Link href="/data-deletion" className="text-gray-400 hover:text-gray-600 text-[10px] uppercase font-bold tracking-wider transition-colors">
+                            Data Deletion
+                        </Link>
                     </div>
                 </div>
             </div>
