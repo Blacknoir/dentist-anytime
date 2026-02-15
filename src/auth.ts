@@ -13,10 +13,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         Google({
             clientId: process.env.AUTH_GOOGLE_ID,
             clientSecret: process.env.AUTH_GOOGLE_SECRET,
+            allowDangerousEmailAccountLinking: true,
         }),
         Facebook({
             clientId: process.env.AUTH_FACEBOOK_ID,
             clientSecret: process.env.AUTH_FACEBOOK_SECRET,
+            allowDangerousEmailAccountLinking: true,
         }),
         Credentials({
             name: "Admin Login",
@@ -49,18 +51,34 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     session: {
         strategy: "jwt",
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+    },
+    cookies: {
+        sessionToken: {
+            name: `next-auth.session-token`,
+            options: {
+                httpOnly: true,
+                sameSite: "lax",
+                path: "/",
+                secure: process.env.NODE_ENV === "production",
+            },
+        },
     },
     callbacks: {
-        async jwt({ token, user }) {
+        async jwt({ token, user, trigger, session }) {
             if (user) {
                 token.role = (user as any).role
                 token.id = user.id
             }
-            return token
+            // Optimization: Keep the token extremely small
+            return {
+                id: token.id,
+                role: token.role
+            } as any
         },
         async session({ session, token }) {
             if (session.user) {
-                (session.user as any).role = token.role
+                (session.user as any).role = token.role as string
                 session.user.id = token.id as string
             }
             return session
