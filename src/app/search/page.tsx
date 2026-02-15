@@ -6,14 +6,16 @@ import { SearchClient } from "./search-client"
 export default async function SearchPage({
     searchParams,
 }: {
-    searchParams: Promise<{ q?: string; specialty?: string; price?: string; rating?: string }>
+    searchParams: Promise<{ q?: string; specialty?: string; price?: string; rating?: string; lat?: string; lng?: string }>
 }) {
-    const { q: query, specialty, price, rating } = await searchParams
+    const { q: query, specialty, price, rating, lat, lng } = await searchParams
     const dentists = await getDentists(
         query,
         specialty,
         price ? parseInt(price) : undefined,
-        rating ? parseFloat(rating) : undefined
+        rating ? parseFloat(rating) : undefined,
+        lat ? parseFloat(lat) : undefined,
+        lng ? parseFloat(lng) : undefined
     )
 
     return (

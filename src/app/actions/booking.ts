@@ -17,10 +17,10 @@ export async function createBooking(formData: {
 
     const dentist = await prisma.dentistProfile.findUnique({
         where: { id: formData.dentistProfileId },
-        select: { commissionRate: true }
+        select: { commissionRate: true, priceFrom: true }
     })
 
-    const price = 5000 // In cents (50.00 EUR) - In a real app this would come from the service
+    const price = (dentist?.priceFrom || 50) * 100 // Use dentist's consultation fee (priceFrom) in cents
     const commissionAmount = (price * (dentist?.commissionRate || 10)) / 100 / 100 // Convert to EUR
 
     const booking = await prisma.booking.create({

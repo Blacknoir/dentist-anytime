@@ -26,12 +26,12 @@ export function SearchClient({ initialDentists }: SearchClientProps) {
         rating: d.rating,
         reviews: d.reviewCount,
         location: d.location,
-        image: d.user.image || d.image,
-        distance: "0.8 km",
+        image: d.user.image || d.image || "/dentist-placeholder.png",
         nextSlots: d.availability.length > 0
             ? d.availability.slice(0, 3).map((a: any) => formatTime(a.startTime))
             : [],
         price: `€${d.priceFrom}`,
+        distance: d.distance
     }))
 
     return (
@@ -43,7 +43,7 @@ export function SearchClient({ initialDentists }: SearchClientProps) {
                         {t('pages.search.title')}
                     </h1>
                     <p className="text-gray-500 mt-1">
-                        {dentists.length} {t('pages.search.results_found')} • <span className="text-green-600 font-medium">85 {t('pages.search.available_today')}</span>
+                        {dentists.length} {t('pages.search.results_found')}
                     </p>
                 </div>
 

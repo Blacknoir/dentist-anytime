@@ -1,6 +1,7 @@
 "use client"
 
 import Image from "next/image"
+import Link from "next/link"
 import { Star, MapPin, ShieldCheck, Share2, Heart, Clock, Award, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/LanguageContext"
@@ -45,22 +46,24 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
                                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{dentist.user.name}</h1>
                                     <ShieldCheck className="h-6 w-6 text-primary-500" />
                                 </div>
-                                <p className="text-lg text-primary-600 font-medium mb-2">{dentist.specialty} • DDS, PhD</p>
+                                <p className="text-lg text-primary-600 font-medium mb-2">{dentist.specialty}</p>
 
                                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
                                     <div className="flex items-center gap-1">
                                         <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                                        <span className="font-bold text-gray-900">{dentist.rating}</span>
+                                        <span className="font-bold text-gray-900">{dentist.rating.toFixed(1)}</span>
                                         <span className="underline cursor-pointer">({dentist.reviewCount} {t('pages.search.reviews')})</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <MapPin className="h-4 w-4" />
                                         <span>{dentist.location}</span>
                                     </div>
-                                    <div className="flex items-center gap-1 text-green-600 font-medium">
-                                        <Clock className="h-4 w-4" />
-                                        <span>{t('pages.profile.open_until')} 6:00 PM</span>
-                                    </div>
+                                    {dentist.availability && dentist.availability.length > 0 && (
+                                        <div className="flex items-center gap-1 text-green-600 font-medium">
+                                            <Clock className="h-4 w-4" />
+                                            <span>Available Today</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-4">
@@ -68,22 +71,32 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
                                         <Award className="h-4 w-4 text-primary-500" />
                                         <span>{dentist.experienceYears} {t('pages.profile.years_exp')}</span>
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
-                                        <Users className="h-4 w-4 text-primary-500" />
-                                        <span>2,000+ {t('pages.profile.patients')}</span>
-                                    </div>
+                                    {dentist._count?.bookings > 0 && (
+                                        <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
+                                            <Users className="h-4 w-4 text-primary-500" />
+                                            <span>{dentist._count.bookings.toLocaleString()}+ {t('pages.profile.patients')}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            <div className="flex gap-2 w-full md:w-auto">
-                                <Button variant="outline" size="icon" className="rounded-full">
-                                    <Share2 className="h-4 w-4" />
-                                </Button>
-                                <Button variant="outline" size="icon" className="rounded-full">
-                                    <Heart className="h-4 w-4" />
-                                </Button>
-                                <Button size="lg" className="flex-1 md:flex-none shadow-lg shadow-primary-500/20">
-                                    {t('pages.profile.book_appointment')}
+                            <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-center">
+                                <div className="flex flex-col items-center md:items-end px-4 py-2 bg-primary-50 rounded-xl border border-primary-100 min-w-[140px]">
+                                    <span className="text-[10px] uppercase tracking-wider font-bold text-primary-600">{t('pages.profile.consultation_fee')}</span>
+                                    <span className="text-2xl font-black text-primary-700">€{dentist.priceFrom}</span>
+                                </div>
+                                <div className="flex gap-2 w-full sm:w-auto">
+                                    <Button variant="outline" size="icon" className="rounded-full">
+                                        <Share2 className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="outline" size="icon" className="rounded-full">
+                                        <Heart className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                <Button size="lg" className="w-full sm:w-auto shadow-lg shadow-primary-500/20 px-8" asChild>
+                                    <Link href={`/booking?dentistId=${dentist.id}`}>
+                                        {t('pages.profile.book_appointment')}
+                                    </Link>
                                 </Button>
                             </div>
                         </div>

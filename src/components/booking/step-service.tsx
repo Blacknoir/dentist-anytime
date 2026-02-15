@@ -7,17 +7,22 @@ import { useLanguage } from "@/lib/LanguageContext"
 interface StepServiceProps {
     selectedService: string | null
     onSelect: (service: string) => void
+    services?: any[]
 }
 
-export function StepService({ selectedService, onSelect }: StepServiceProps) {
+export function StepService({ selectedService, onSelect, services: initialServices }: StepServiceProps) {
     const { t } = useLanguage()
 
-    const services = [
-        { id: "checkup", name: t('popular.cleaning_title'), price: "$50", duration: `30 ${t('time.min')}` },
-        { id: "cleaning", name: t('popular.cleaning_title'), price: "$120", duration: `45 ${t('time.min')}` },
-        { id: "whitening", name: t('popular.whitening_title'), price: "$350", duration: `60 ${t('time.min')}` },
-        { id: "emergency", name: t('popular.emergency_title'), price: "$80", duration: `30 ${t('time.min')}` },
-    ]
+    const services = initialServices && initialServices.length > 0
+        ? initialServices.map(s => ({
+            id: s.id,
+            name: s.name,
+            price: `€${s.price || 0}`,
+            duration: `${s.duration || 30} ${t('time.min')}`
+        }))
+        : [
+            { id: "consultation", name: "Initial Consultation", price: "Free", duration: `30 ${t('time.min')}` },
+        ]
 
     return (
         <div className="space-y-4">

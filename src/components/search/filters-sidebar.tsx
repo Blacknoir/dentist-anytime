@@ -12,19 +12,23 @@ import {
     AccordionTrigger
 } from "@/components/ui/accordion"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Filter, X } from "lucide-react"
+import { Filter, X, Navigation, Loader2 } from "lucide-react"
 import { useLanguage } from "@/lib/LanguageContext"
+import { cn } from "@/lib/utils"
 
 export function FiltersSidebar() {
     const { t } = useLanguage()
     const router = useRouter()
     const searchParams = useSearchParams()
+    const [isLocating, setIsLocating] = React.useState(false)
 
     const currentSpecialty = searchParams.get('specialty') || ''
     const currentPrice = searchParams.get('price') || '200'
     const currentRating = searchParams.get('rating') || ''
+    const currentLat = searchParams.get('lat')
+    const currentLng = searchParams.get('lng')
 
-    const updateFilters = (key: string, value: string) => {
+    const updateFilters = (key: string, value: string | null) => {
         const params = new URLSearchParams(searchParams.toString())
         if (value) {
             params.set(key, value)
@@ -36,6 +40,39 @@ export function FiltersSidebar() {
 
     const resetFilters = () => {
         router.push('/search')
+    }
+
+    const handleNearMe = () => {
+        if (currentLat && currentLng) {
+            // If already active, toggle off
+            const params = new URLSearchParams(searchParams.toString())
+            params.delete('lat')
+            params.delete('lng')
+            router.push(`/search?${params.toString()}`)
+            return
+        }
+
+        setIsLocating(true)
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const params = new URLSearchParams(searchParams.toString())
+                    params.set('lat', position.coords.latitude.toString())
+                    params.set('lng', position.coords.longitude.toString())
+                    router.push(`/search?${params.toString()}`)
+                    setIsLocating(false)
+                },
+                (error) => {
+                    console.error("Geolocation error:", error)
+                    setIsLocating(false)
+                    alert("Could not get your location. Please ensure location access is granted.")
+                },
+                { enableHighAccuracy: true }
+            )
+        } else {
+            setIsLocating(false)
+            alert("Geolocation is not supported by your browser.")
+        }
     }
 
     return (
@@ -67,10 +104,28 @@ export function FiltersSidebar() {
                     </button>
                 </div>
 
+                {/* Near Me Button */}
+                <Button
+                    variant={currentLat ? "default" : "outline"}
+                    className={cn(
+                        "w-full mb-6 gap-2 font-bold",
+                        currentLat ? "bg-primary-600 hover:bg-primary-700" : ""
+                    )}
+                    onClick={handleNearMe}
+                    disabled={isLocating}
+                >
+                    {isLocating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <Navigation className={cn("h-4 w-4", currentLat ? "fill-white" : "")} />
+                    )}
+                    {isLocating ? t('pages.search.locating') : t('pages.search.near_me')}
+                </Button>
+
                 <Accordion type="multiple" defaultValue={["specialty", "availability", "price"]} className="w-full">
                     {/* Specialty Filter */}
                     <AccordionItem value="specialty" className="border-b-0 mb-4">
-                        <AccordionTrigger className="hover:no-underline py-2 text-sm font-semibold text-gray-900">
+                        <AccordionTrigger className="hover:no-underline py-2 text-sm font-semibold text-gray-900 text-left">
                             {t('pages.search.specialty')}
                         </AccordionTrigger>
                         <AccordionContent>
@@ -102,7 +157,7 @@ export function FiltersSidebar() {
 
                     {/* Price Range */}
                     <AccordionItem value="price" className="border-b-0 mb-4">
-                        <AccordionTrigger className="hover:no-underline py-2 text-sm font-semibold text-gray-900">
+                        <AccordionTrigger className="hover:no-underline py-2 text-sm font-semibold text-gray-900 text-left">
                             {t('pages.search.price')}
                         </AccordionTrigger>
                         <AccordionContent>
@@ -124,7 +179,7 @@ export function FiltersSidebar() {
 
                     {/* Rating */}
                     <AccordionItem value="rating" className="border-b-0">
-                        <AccordionTrigger className="hover:no-underline py-2 text-sm font-semibold text-gray-900">
+                        <AccordionTrigger className="hover:no-underline py-2 text-sm font-semibold text-gray-900 text-left">
                             {t('pages.search.rating')}
                         </AccordionTrigger>
                         <AccordionContent>

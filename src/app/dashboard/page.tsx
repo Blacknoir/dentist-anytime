@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { signInWithGoogle } from "@/app/actions/auth"
 import { AnalyticsDashboard } from "@/components/dashboard/analytics-dashboard"
+import { BookingPrepaymentStatus } from "@/components/dashboard/booking-prepayment-status"
 
 export default async function DashboardPage() {
     const stats = await getDashboardStats()
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
                 title: "Total Patients",
                 value: (stats as any).totalPatients.toLocaleString(),
                 icon: Users,
-                trend: "+12% from last month",
+                trend: "All time unique patients",
                 color: "text-blue-600",
                 bg: "bg-blue-50"
             },
@@ -55,7 +56,7 @@ export default async function DashboardPage() {
                 title: "Upcoming Bookings",
                 value: (stats as any).upcomingBookings.length,
                 icon: Calendar,
-                trend: "4 new today",
+                trend: "Recent and future slots",
                 color: "text-primary-600",
                 bg: "bg-primary-50"
             },
@@ -63,15 +64,15 @@ export default async function DashboardPage() {
                 title: "Average Rating",
                 value: (stats as any).rating.toFixed(1),
                 icon: Star,
-                trend: `${(stats as any).reviewCount} total reviews`,
+                trend: `${(stats as any).reviewCount} verified reviews`,
                 color: "text-yellow-600",
                 bg: "bg-yellow-50"
             },
             {
-                title: "Monthly Revenue",
+                title: "Total Revenue",
                 value: `€${(stats as any).revenue.toLocaleString()}`,
                 icon: TrendingUp,
-                trend: "+8% from last month",
+                trend: "From confirmed appointments",
                 color: "text-green-600",
                 bg: "bg-green-50"
             }
@@ -140,18 +141,27 @@ export default async function DashboardPage() {
 
                 {/* Stripe Connect Prompt */}
                 {isVerified && !(stats as any).isStripeConnected && (
-                    <div className="p-4 md:p-6 rounded-2xl border bg-indigo-50 border-indigo-100 text-indigo-800 flex flex-col sm:flex-row items-start gap-4">
-                        <div className="p-3 rounded-xl bg-indigo-100">
+                    <div className="p-4 md:p-6 rounded-2xl border bg-indigo-50 border-indigo-100 text-indigo-800 flex flex-col sm:flex-row items-start gap-4 shadow-sm shadow-indigo-100">
+                        <div className="p-3 rounded-xl bg-indigo-100/50">
                             <CreditCard className="h-6 w-6" />
                         </div>
                         <div className="flex-1">
-                            <h3 className="text-lg font-bold mb-1">Setup Payments</h3>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-lg font-bold">
+                                    {(stats as any).stripeAccountId ? "Complete Payment Setup" : "Setup Payments"}
+                                </h3>
+                                {(stats as any).stripeAccountId && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-900 uppercase">In Progress</span>
+                                )}
+                            </div>
                             <p className="text-sm opacity-90 mb-4">
-                                To receive payments from bookings, you need to connect your Stripe account.
+                                {(stats as any).stripeAccountId
+                                    ? "Your Stripe account is created but needs more information to start receiving payments. Complete the verification now."
+                                    : "To receive payments from bookings, you need to connect your Stripe account. This is required to show your profile to patients."}
                             </p>
                             <form action={createStripeConnectAccount}>
-                                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none">
-                                    Connect Stripe
+                                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white border-none shadow-md shadow-indigo-200">
+                                    {(stats as any).stripeAccountId ? "Resume Stripe Setup" : "Connect Stripe"}
                                 </Button>
                             </form>
                         </div>
@@ -160,7 +170,7 @@ export default async function DashboardPage() {
 
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Dentist Dashboard</h1>
-                    <p className="text-gray-500">Welcome back! Here's what's happening today.</p>
+                    <p className="text-gray-500">Welcome back! Manage your practice with real-time data.</p>
                 </div>
 
                 {/* Stats Grid */}
@@ -180,7 +190,6 @@ export default async function DashboardPage() {
                                     <p className="text-sm font-medium text-gray-500">{card.title}</p>
                                     <h3 className="text-2xl font-bold text-gray-900 mt-1">{card.value}</h3>
                                     <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                                        <TrendingUp className="h-3 w-3 text-green-500" />
                                         {card.trend}
                                     </p>
                                 </div>
@@ -188,9 +197,6 @@ export default async function DashboardPage() {
                         </Card>
                     ))}
                 </div>
-
-                {/* Analytics Insights */}
-                <AnalyticsDashboard />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Upcoming Appointments */}
@@ -213,6 +219,7 @@ export default async function DashboardPage() {
                                                 <div>
                                                     <p className="font-bold text-gray-900 line-clamp-1">{booking.patient.name}</p>
                                                     <p className="text-sm text-gray-500 line-clamp-1">{booking.serviceName}</p>
+                                                    <BookingPrepaymentStatus isPrepaid={!!booking.stripePaymentId} />
                                                 </div>
                                             </div>
                                             <div className="sm:text-right w-full sm:w-auto pl-14 sm:pl-0">
@@ -342,6 +349,11 @@ export default async function DashboardPage() {
                                             <Calendar className="h-4 w-4" />
                                             {format(new Date(booking.date), 'MMM d, yyyy @ HH:mm')}
                                         </div>
+                                        {booking.stripePaymentId && (
+                                            <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100 w-fit ml-auto">
+                                                €50 PREPAID
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))

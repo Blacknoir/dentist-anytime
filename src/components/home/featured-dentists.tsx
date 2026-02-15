@@ -29,8 +29,8 @@ export function FeaturedDentists({ initialDentists }: FeaturedDentistsProps) {
         rating: d.rating,
         reviews: d.reviewCount,
         location: d.location,
-        image: d.user.image || d.image,
-        nextSlot: d.availability[0] ? formatTime(d.availability[0].startTime) : "9:00 AM",
+        image: d.user.image || d.image || "/dentist-placeholder.png",
+        nextSlot: d.availability[0] ? formatTime(d.availability[0].startTime) : t('featured.no_slots'),
         price: `€${d.priceFrom}`,
     }))
     const scroll = (direction: "left" | "right") => {

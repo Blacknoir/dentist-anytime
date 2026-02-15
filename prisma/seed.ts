@@ -20,6 +20,8 @@ async function main() {
             profile: {
                 specialty: 'Cosmetic Dentist',
                 location: 'Downtown Dental, NY',
+                latitude: 40.7128,
+                longitude: -74.0060,
                 rating: 4.9,
                 reviewCount: 128,
                 experienceYears: 12,
@@ -47,6 +49,8 @@ async function main() {
             profile: {
                 specialty: 'Orthodontist',
                 location: 'Smile Studio, Brooklyn',
+                latitude: 40.6782,
+                longitude: -73.9442,
                 rating: 4.8,
                 reviewCount: 95,
                 experienceYears: 8,
@@ -73,6 +77,8 @@ async function main() {
             profile: {
                 specialty: 'Pediatric Dentist',
                 location: 'Kids Care, Queens',
+                latitude: 40.7282,
+                longitude: -73.7949,
                 rating: 5.0,
                 reviewCount: 210,
                 experienceYears: 15,
@@ -106,6 +112,8 @@ async function main() {
                     create: {
                         specialty: d.profile.specialty,
                         location: d.profile.location,
+                        latitude: d.profile.latitude,
+                        longitude: d.profile.longitude,
                         rating: d.profile.rating,
                         reviewCount: d.profile.reviewCount,
                         experienceYears: d.profile.experienceYears,

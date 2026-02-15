@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
+import { BookingPrepaymentStatus } from "@/components/dashboard/booking-prepayment-status"
 
 export default async function BookingsPage() {
     const bookings = await getDentistBookings()
@@ -79,6 +80,7 @@ export default async function BookingsPage() {
                                                     <div>
                                                         <p className="font-bold text-gray-900">{booking.patient.name}</p>
                                                         <p className="text-xs text-gray-500">{booking.patient.email}</p>
+                                                        <BookingPrepaymentStatus isPrepaid={!!booking.stripePaymentId} />
                                                     </div>
                                                 </div>
                                             </td>

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
+import { getStripeAccountStatus } from "@/app/actions/stripe"
 
 export async function getDashboardStats() {
     const session = await auth()
@@ -20,43 +21,41 @@ export async function getDashboardStats() {
                     }
                 },
                 bookings: {
-                    where: {
-                        date: {
-                            gte: new Date()
-                        }
-                    },
                     include: {
                         patient: true
-                    },
-                    orderBy: {
-                        date: 'asc'
-                    },
-                    take: 5
+                    }
                 }
             }
         })
 
         if (!dentist) return null
 
+        const upcomingBookings = dentist.bookings.filter(b => b.date >= new Date())
+        const totalPatients = new Set(dentist.bookings.map(b => b.patientId)).size
+        const totalRevenue = dentist.bookings
+            .filter(b => b.status === "CONFIRMED" || b.paymentStatus === "COMPLETED")
+            .reduce((sum, b) => sum + (b.price || 0), 0)
+
         return {
             role: "DENTIST",
             id: dentist.id,
             totalBookings: dentist._count.bookings,
-            upcomingBookings: dentist.bookings,
+            upcomingBookings: upcomingBookings.slice(0, 5),
             rating: dentist.rating,
             reviewCount: dentist.reviewCount,
             experienceYears: dentist.experienceYears,
             isVerified: (dentist as any).isVerified,
             isPendingVerification: (dentist as any).isPendingVerification,
-            totalPatients: 1250, // Mock
-            revenue: 12500, // Mock
+            totalPatients,
+            revenue: totalRevenue,
 
             // Availability Status
             todayAvailability: await getTodayAvailability(dentist.id),
 
             // Stripe Status
             stripeAccountId: (dentist as any).stripeAccountId,
-            isStripeConnected: !!(dentist as any).stripeAccountId,
+            isStripeConnected: (await getStripeAccountStatus())?.isConnected || false,
+            stripeStatus: await getStripeAccountStatus()
         }
     } else {
         // Patient Stats
@@ -199,6 +198,16 @@ export async function updateDentistProfile(data: any) {
     const session = await auth()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
+    // 1. Update User name and image
+    await prisma.user.update({
+        where: { id: session.user.id },
+        data: {
+            name: data.name,
+            image: data.image
+        }
+    })
+
+    // 2. Update Dentist Profile
     return await prisma.dentistProfile.update({
         where: { userId: session.user.id },
         data: {

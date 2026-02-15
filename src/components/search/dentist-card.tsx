@@ -2,24 +2,24 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Star, MapPin, Clock, Heart, ShieldCheck, Video } from "lucide-react"
+import { Star, MapPin, Clock, Heart, ShieldCheck, Video, Navigation } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useLanguage } from "@/lib/LanguageContext"
 
 interface DentistCardProps {
-    id: number
+    id: string
     name: string
     specialty: string
     rating: number
     reviews: number
     location: string
-    distance: string
     image: string
     nextSlots: string[]
     price: string
     verified?: boolean
     videoConsult?: boolean
+    distance?: number | null
 }
 
 export function DentistCard({
@@ -29,12 +29,12 @@ export function DentistCard({
     rating,
     reviews,
     location,
-    distance,
     image,
     nextSlots,
     price,
     verified = true,
     videoConsult = true,
+    distance = null
 }: DentistCardProps) {
     const { t } = useLanguage()
 
@@ -73,18 +73,24 @@ export function DentistCard({
                                 </div>
                                 <p className="text-primary-600 font-medium text-sm mb-2">{specialty}</p>
 
-                                <div className="flex items-center gap-4 text-sm text-gray-500 mb-3">
-                                    <div className="flex items-center gap-1">
-                                        <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
-                                        <span className="font-semibold text-gray-900">{rating}</span>
-                                        <span>({reviews} {t('pages.search.reviews')})</span>
+                                <div className="flex flex-col gap-1 text-sm text-gray-500 mb-3">
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-1">
+                                            <Star className="h-4 w-4 text-yellow-400 fill-yellow-400" />
+                                            <span className="font-semibold text-gray-900">{rating}</span>
+                                            <span>({reviews} {t('pages.search.reviews')})</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            <MapPin className="h-4 w-4" />
+                                            <span>{location}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-1">
-                                        <MapPin className="h-4 w-4" />
-                                        <span>{location}</span>
-                                        <span className="text-gray-300">•</span>
-                                        <span>{distance}</span>
-                                    </div>
+                                    {distance !== null && (
+                                        <div className="flex items-center gap-1 text-primary-600 font-bold">
+                                            <Navigation className="h-3 w-3 fill-primary-600" />
+                                            <span>{distance.toFixed(1)} km {t('pages.search.near_me')}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 mb-4">

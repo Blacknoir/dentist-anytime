@@ -36,6 +36,8 @@ model DentistProfile {
   education       String?
   image           String?
   degreeImage     String?
+  latitude        Float?
+  longitude       Float?
   isVerified      Boolean  @default(false)
   isPendingVerification Boolean @default(false)
   priceFrom       Int
@@ -46,6 +48,7 @@ model DentistProfile {
   bookings        Booking[]
   posts           BlogPost[]
   stripeAccountId String?        // Stripe Connected Account ID
+  isStripeEnabled Boolean  @default(false)
   exceptions      AvailabilityException[]
 }
 

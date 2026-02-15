@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -18,6 +18,18 @@ export function ProfileForm({ initialData }: { initialData: any }) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [degreeUrl, setDegreeUrl] = useState("")
+    const fileInputRef = useRef<HTMLInputElement>(null)
+
+    const [formData, setFormData] = useState({
+        name: initialData?.user?.name || "",
+        specialty: initialData?.specialty || "",
+        location: initialData?.location || "",
+        about: initialData?.about || "",
+        education: initialData?.education || "",
+        experienceYears: initialData?.experienceYears || 0,
+        priceFrom: initialData?.priceFrom || 0,
+        image: initialData?.user?.image || initialData?.image || ""
+    })
 
     const handleVerificationSubmit = async () => {
         if (!degreeUrl) return
@@ -33,16 +45,16 @@ export function ProfileForm({ initialData }: { initialData: any }) {
         }
     }
 
-    const [formData, setFormData] = useState({
-        name: initialData?.user?.name || "",
-        specialty: initialData?.specialty || "",
-        location: initialData?.location || "",
-        about: initialData?.about || "",
-        education: initialData?.education || "",
-        experienceYears: initialData?.experienceYears || 0,
-        priceFrom: initialData?.priceFrom || 0,
-        image: initialData?.user?.image || initialData?.image || ""
-    })
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) {
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setFormData(prev => ({ ...prev, image: reader.result as string }))
+            }
+            reader.readAsDataURL(file)
+        }
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -92,7 +104,20 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                                 </div>
                             )}
                         </div>
-                        <Button variant="outline" size="sm" className="w-full gap-2">
+                        <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            ref={fileInputRef}
+                            onChange={handleImageChange}
+                        />
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="w-full gap-2"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
                             <Upload className="h-4 w-4" /> Change Photo
                         </Button>
                         <p className="text-xs text-gray-400 mt-4 text-center">

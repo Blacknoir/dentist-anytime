@@ -25,15 +25,17 @@ export function ProfileClient({ dentist }: ProfileClientProps) {
                         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
                             <h2 className="text-xl font-bold text-gray-900 mb-4">{t('pages.profile.about')} {dentist.user.name}</h2>
                             <p className="text-gray-600 leading-relaxed mb-4">
-                                {dentist.about || t('pages.profile.about_text')}
+                                {dentist.about || "No description provided yet."}
                             </p>
-                            <p className="text-gray-600 leading-relaxed">
-                                {dentist.education || t('pages.profile.education_text')}
-                            </p>
+                            {dentist.education && (
+                                <p className="text-gray-600 leading-relaxed">
+                                    {dentist.education}
+                                </p>
+                            )}
                         </div>
 
-                        <ServicesList services={dentist.services} />
-                        <ReviewsSection />
+                        <ServicesList services={dentist.services} consultationFee={dentist.priceFrom} />
+                        <ReviewsSection rating={dentist.rating} reviewCount={dentist.reviewCount} />
                     </div>
 
                     {/* Right Column: Booking */}
