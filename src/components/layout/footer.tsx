@@ -94,7 +94,7 @@ export function Footer() {
                         <h3 className="font-semibold text-gray-900 mb-4">{t('footer.for_dentists')}</h3>
                         <ul className="space-y-3">
                             <li>
-                                <Link href="/for-dentists" className="text-gray-500 hover:text-primary-500 text-sm transition-colors">
+                                <Link href="/register?role=DENTIST" className="text-gray-500 hover:text-primary-500 text-sm transition-colors">
                                     {t('footer.join_network')}
                                 </Link>
                             </li>

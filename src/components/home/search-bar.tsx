@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/LanguageContext"
+import { LocationAutocomplete } from "@/components/search/location-autocomplete"
 
 export function SearchBar() {
     const [activeTab, setActiveTab] = React.useState<"doctor" | "service">("doctor")
@@ -22,14 +23,33 @@ export function SearchBar() {
         router.push(`/search?${params.toString()}`)
     }
 
+    const handleLocationSelect = async (place: { place_id: string; description: string }) => {
+        setLocation(place.description)
+
+        try {
+            const response = await fetch(`/api/places/details?placeId=${place.place_id}`)
+            if (response.ok) {
+                const coords = await response.json()
+                const params = new URLSearchParams()
+                if (query) params.set('q', query)
+                params.set('location', place.description)
+                params.set('lat', coords.lat.toString())
+                params.set('lng', coords.lng.toString())
+                router.push(`/search?${params.toString()}`)
+            }
+        } catch (error) {
+            console.error('Error fetching place details:', error)
+        }
+    }
+
     return (
-        <div className="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+        <div className="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-100">
             {/* Tabs */}
             <div className="flex border-b border-gray-100">
                 <button
                     onClick={() => setActiveTab("doctor")}
                     className={cn(
-                        "flex-1 py-4 text-sm font-medium transition-colors relative",
+                        "flex-1 py-4 text-sm font-medium transition-colors relative rounded-tl-2xl",
                         activeTab === "doctor"
                             ? "text-primary-600 bg-primary-50/50"
                             : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -43,7 +63,7 @@ export function SearchBar() {
                 <button
                     onClick={() => setActiveTab("service")}
                     className={cn(
-                        "flex-1 py-4 text-sm font-medium transition-colors relative",
+                        "flex-1 py-4 text-sm font-medium transition-colors relative rounded-tr-2xl",
                         activeTab === "service"
                             ? "text-primary-600 bg-primary-50/50"
                             : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -69,18 +89,16 @@ export function SearchBar() {
                                 ? t('search.placeholder_doctor')
                                 : t('search.placeholder_service')
                         }
-                        className="pl-10 h-12 border-gray-200 bg-gray-50 focus:bg-white transition-colors"
+                        className="pl-10 h-12 border-gray-200 bg-white focus:bg-white transition-colors !text-gray-900 placeholder:text-gray-500"
                     />
                 </div>
 
-                <div className="flex-1 relative group">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
-                    <Input
+                <div className="flex-1">
+                    <LocationAutocomplete
                         value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        onChange={setLocation}
+                        onSelect={handleLocationSelect}
                         placeholder={t('search.placeholder_location')}
-                        className="pl-10 h-12 border-gray-200 bg-gray-50 focus:bg-white transition-colors"
                     />
                 </div>
 
@@ -88,7 +106,7 @@ export function SearchBar() {
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
                     <Input
                         placeholder={t('search.placeholder_date')}
-                        className="pl-10 h-12 border-gray-200 bg-gray-50 focus:bg-white transition-colors"
+                        className="pl-10 h-12 border-gray-200 bg-white focus:bg-white transition-colors !text-gray-900 placeholder:text-gray-500"
                     />
                 </div>
 

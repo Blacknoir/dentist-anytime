@@ -11,6 +11,7 @@ import {
     AccordionItem,
     AccordionTrigger
 } from "@/components/ui/accordion"
+import { LocationAutocomplete } from "@/components/search/location-autocomplete"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Filter, X, Navigation, Loader2 } from "lucide-react"
 import { useLanguage } from "@/lib/LanguageContext"
@@ -21,12 +22,21 @@ export function FiltersSidebar() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [isLocating, setIsLocating] = React.useState(false)
+    const [locationInput, setLocationInput] = React.useState('')
 
     const currentSpecialty = searchParams.get('specialty') || ''
     const currentPrice = searchParams.get('price') || '200'
     const currentRating = searchParams.get('rating') || ''
     const currentLat = searchParams.get('lat')
     const currentLng = searchParams.get('lng')
+    const currentLocation = searchParams.get('location') || ''
+
+    // Sync local input with URL
+    React.useEffect(() => {
+        if (currentLocation) {
+            setLocationInput(currentLocation)
+        }
+    }, [currentLocation])
 
     const updateFilters = (key: string, value: string | null) => {
         const params = new URLSearchParams(searchParams.toString())
@@ -75,6 +85,23 @@ export function FiltersSidebar() {
         }
     }
 
+    const handleLocationSelect = async (place: { place_id: string; description: string }) => {
+        setLocationInput(place.description)
+        try {
+            const response = await fetch(`/api/places/details?placeId=${place.place_id}`)
+            if (response.ok) {
+                const coords = await response.json()
+                const params = new URLSearchParams(searchParams.toString())
+                params.set('location', place.description)
+                params.set('lat', coords.lat.toString())
+                params.set('lng', coords.lng.toString())
+                router.push(`/search?${params.toString()}`)
+            }
+        } catch (error) {
+            console.error('Error fetching place details:', error)
+        }
+    }
+
     return (
         <div className="w-full lg:w-80 flex-shrink-0 space-y-6">
             <div className="flex items-center justify-between lg:hidden mb-6">
@@ -108,7 +135,7 @@ export function FiltersSidebar() {
                 <Button
                     variant={currentLat ? "default" : "outline"}
                     className={cn(
-                        "w-full mb-6 gap-2 font-bold",
+                        "w-full mb-4 gap-2 font-bold",
                         currentLat ? "bg-primary-600 hover:bg-primary-700" : ""
                     )}
                     onClick={handleNearMe}
@@ -121,6 +148,16 @@ export function FiltersSidebar() {
                     )}
                     {isLocating ? t('pages.search.locating') : t('pages.search.near_me')}
                 </Button>
+
+                {/* Location Autocomplete */}
+                <div className="mb-6">
+                    <LocationAutocomplete
+                        value={locationInput}
+                        onChange={setLocationInput}
+                        onSelect={handleLocationSelect}
+                        placeholder={t('pages.search.location_placeholder') || "Enter city or location"}
+                    />
+                </div>
 
                 <Accordion type="multiple" defaultValue={["specialty", "availability", "price"]} className="w-full">
                     {/* Specialty Filter */}

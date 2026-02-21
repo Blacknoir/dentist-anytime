@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { Star, MapPin, Clock, Heart, ShieldCheck, Video, Navigation } from "lucide-react"
+import { Star, MapPin, Clock, Heart, ShieldCheck, Navigation } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { useLanguage } from "@/lib/LanguageContext"
@@ -18,7 +18,6 @@ interface DentistCardProps {
     nextSlots: string[]
     price: string
     verified?: boolean
-    videoConsult?: boolean
     distance?: number | null
 }
 
@@ -33,7 +32,6 @@ export function DentistCard({
     nextSlots,
     price,
     verified = true,
-    videoConsult = true,
     distance = null
 }: DentistCardProps) {
     const { t } = useLanguage()
@@ -94,12 +92,6 @@ export function DentistCard({
                                 </div>
 
                                 <div className="flex flex-wrap gap-2 mb-4">
-                                    {videoConsult && (
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                                            <Video className="h-3 w-3 mr-1" />
-                                            {t('pages.search.video_consult')}
-                                        </span>
-                                    )}
                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
                                         <Clock className="h-3 w-3 mr-1" />
                                         {t('pages.search.next_available')}: {t('featured.slot.today')}

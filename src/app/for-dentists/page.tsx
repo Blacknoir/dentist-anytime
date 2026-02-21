@@ -74,8 +74,10 @@ export default function ForDentistsPage() {
                                 {t('dentists.hero.subtitle')}
                             </p>
                             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                                <Button size="lg" className="h-14 px-10 text-lg bg-primary-500 hover:bg-primary-600 border-none">
-                                    {t('dentists.hero.cta')}
+                                <Button size="lg" className="h-14 px-10 text-lg bg-primary-500 hover:bg-primary-600 border-none" asChild>
+                                    <Link href="/register?role=DENTIST">
+                                        {t('dentists.hero.cta')}
+                                    </Link>
                                 </Button>
                                 <Button variant="outline" size="lg" className="h-14 px-10 text-lg border-white/20 text-white hover:bg-white/10">
                                     View Demo
@@ -187,8 +189,10 @@ export default function ForDentistsPage() {
                                         <span>No upfront costs or hidden fees</span>
                                     </div>
                                 </div>
-                                <Button size="lg" className="bg-white text-primary-600 hover:bg-primary-50 h-14 text-lg">
-                                    {t('dentists.cta.button')}
+                                <Button size="lg" className="bg-white text-primary-600 hover:bg-primary-50 h-14 text-lg" asChild>
+                                    <Link href="/register?role=DENTIST">
+                                        {t('dentists.cta.button')}
+                                    </Link>
                                 </Button>
                             </div>
                             <div className="flex-1 p-12 md:p-16 flex flex-col justify-center border-l border-slate-100">

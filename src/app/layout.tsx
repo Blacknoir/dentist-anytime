@@ -20,7 +20,10 @@ export const metadata: Metadata = {
   title: "Dentora | Premium Dental Booking",
   description: "Find and book the best dentists near you. Instant confirmation, verified reviews, and premium care.",
   icons: {
-    icon: "/logo.jpg",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/logo.jpg", type: "image/jpeg" }
+    ],
     apple: "/logo.jpg",
   },
 };

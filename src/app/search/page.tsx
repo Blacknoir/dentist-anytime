@@ -6,16 +6,18 @@ import { SearchClient } from "./search-client"
 export default async function SearchPage({
     searchParams,
 }: {
-    searchParams: Promise<{ q?: string; specialty?: string; price?: string; rating?: string; lat?: string; lng?: string }>
+    searchParams: Promise<{ q?: string; specialty?: string; price?: string; rating?: string; lat?: string; lng?: string; location?: string; radius?: string }>
 }) {
-    const { q: query, specialty, price, rating, lat, lng } = await searchParams
+    const { q: query, specialty, price, rating, lat, lng, location, radius } = await searchParams
     const dentists = await getDentists(
         query,
         specialty,
         price ? parseInt(price) : undefined,
         rating ? parseFloat(rating) : undefined,
         lat ? parseFloat(lat) : undefined,
-        lng ? parseFloat(lng) : undefined
+        lng ? parseFloat(lng) : undefined,
+        location,
+        radius ? parseInt(radius) : 50 // Default 50km if searching by location
     )
 
     return (

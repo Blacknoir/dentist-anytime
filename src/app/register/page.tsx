@@ -11,11 +11,16 @@ import { useLanguage } from "@/lib/LanguageContext"
 import { signInWithGoogle, signInWithFacebook } from "@/app/actions/auth"
 import { cn } from "@/lib/utils"
 import * as React from "react"
+import { useSearchParams } from "next/navigation"
 
 export default function RegisterPage() {
     const { t } = useLanguage()
+    const searchParams = useSearchParams()
+    const roleParam = searchParams.get("role")
 
-    const [role, setRole] = React.useState<"PATIENT" | "DENTIST">("PATIENT")
+    const [role, setRole] = React.useState<"PATIENT" | "DENTIST">(
+        roleParam === "DENTIST" ? "DENTIST" : "PATIENT"
+    )
 
     return (
         <div className="min-h-screen grid lg:grid-cols-2 relative">
