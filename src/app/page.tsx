@@ -8,6 +8,8 @@ import { getDentists } from "@/app/actions/dentists"
 import { getBlogPosts } from "@/app/actions/blog"
 import { LatestBlogPosts } from "@/components/home/latest-blog-posts"
 
+export const dynamic = 'force-dynamic'
+
 export default async function Home() {
   const dentists = await getDentists()
   const posts = await getBlogPosts()

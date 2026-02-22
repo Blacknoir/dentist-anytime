@@ -29,6 +29,9 @@ model DentistProfile {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   specialty       String
   location        String
+  city            String?
+  streetAddress   String?
+  houseNumber     String?
   rating          Float    @default(0)
   reviewCount     Int      @default(0)
   experienceYears Int

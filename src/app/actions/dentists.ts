@@ -126,13 +126,15 @@ export async function getDentists(
 
     if (query) {
         where.OR = [
-            { specialty: { contains: query } },
-            { location: { contains: query } }
+            { specialty: { contains: query, mode: 'insensitive' } },
+            { location: { contains: query, mode: 'insensitive' } },
+            { city: { contains: query, mode: 'insensitive' } },
+            { user: { name: { contains: query, mode: 'insensitive' } } }
         ]
     }
 
     if (specialty) {
-        where.specialty = { contains: specialty }
+        where.specialty = { contains: specialty, mode: 'insensitive' }
     }
 
     if (maxPrice) {
@@ -158,6 +160,12 @@ export async function getDentists(
     // Filter by location if provided
     if (location && (!lat || !lng)) {
         results = results.filter(dentist => {
+            // First try matching by city field (structured)
+            if (dentist.city) {
+                const cityMatch = matchesLocation(dentist.city, location)
+                if (cityMatch) return true
+            }
+            // Fall back to matching by location field (legacy)
             return matchesLocation(dentist.location || "", location)
         })
     }
@@ -172,15 +180,23 @@ export async function getDentists(
             return { ...d, distance: null }
         })
 
-        // Filter by radius if specified
+        // Filter by radius if specified, but also include city matches
         if (radius) {
-            results = results.filter(d => d.distance !== null && d.distance <= radius)
-        } else if (location) {
-            // If location was selected from autocomplete, we might want a default radius (e.g., 50km)
-            // or just show closest ones. Let's stick to showing closest first if no radius.
+            results = results.filter(d => {
+                // Include if within radius
+                if (d.distance !== null && d.distance <= radius) return true
+                // Also include if city matches the search location (for dentists without coordinates)
+                if (location && d.city) {
+                    return matchesLocation(d.city, location)
+                }
+                if (location && d.location) {
+                    return matchesLocation(d.location, location)
+                }
+                return false
+            })
         }
 
-        // Sort by distance
+        // Sort by distance (dentists with distance first, then those without)
         results.sort((a, b) => {
             const distA = a.distance as number | null
             const distB = b.distance as number | null

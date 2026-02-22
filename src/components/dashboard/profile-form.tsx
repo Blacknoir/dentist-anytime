@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLanguage } from "@/lib/LanguageContext"
-import { ShieldCheck, Upload, Save } from "lucide-react"
+import { ShieldCheck, Upload, Save, MapPin } from "lucide-react"
 import Image from "next/image"
 import { updateDentistProfile } from "@/app/actions/dashboard"
 import { submitDegreeForVerification } from "@/app/actions/admin"
 import { useRouter } from "next/navigation"
+import { LocationAutocomplete } from "@/components/search/location-autocomplete"
 
 export function ProfileForm({ initialData }: { initialData: any }) {
     const { t } = useLanguage()
@@ -24,6 +25,11 @@ export function ProfileForm({ initialData }: { initialData: any }) {
         name: initialData?.user?.name || "",
         specialty: initialData?.specialty || "",
         location: initialData?.location || "",
+        city: initialData?.city || "",
+        streetAddress: initialData?.streetAddress || "",
+        houseNumber: initialData?.houseNumber || "",
+        latitude: initialData?.latitude || null,
+        longitude: initialData?.longitude || null,
         about: initialData?.about || "",
         education: initialData?.education || "",
         experienceYears: initialData?.experienceYears || 0,
@@ -56,11 +62,38 @@ export function ProfileForm({ initialData }: { initialData: any }) {
         }
     }
 
+    const handleLocationSelect = async (place: { place_id: string; description: string }) => {
+        try {
+            const response = await fetch(`/api/places/details?placeId=${place.place_id}`)
+            if (response.ok) {
+                const details = await response.json()
+
+                setFormData(prev => ({
+                    ...prev,
+                    location: details.formattedAddress || place.description,
+                    city: details.city || prev.city,
+                    streetAddress: details.streetAddress || prev.streetAddress,
+                    houseNumber: details.houseNumber || prev.houseNumber,
+                    latitude: details.lat,
+                    longitude: details.lng
+                }))
+            }
+        } catch (error) {
+            console.error('Error fetching place details:', error)
+            setFormData(prev => ({ ...prev, location: place.description }))
+        }
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         try {
-            await updateDentistProfile(formData)
+            // Build the full location string from structured fields
+            const fullLocation = buildLocationString(formData)
+            await updateDentistProfile({
+                ...formData,
+                location: fullLocation || formData.location
+            })
             router.refresh()
             alert("Profile updated successfully!")
         } catch (error) {
@@ -154,14 +187,6 @@ export function ProfileForm({ initialData }: { initialData: any }) {
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="location">Clinic Location</Label>
-                                    <Input
-                                        id="location"
-                                        value={formData.location}
-                                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
                                     <Label htmlFor="experience">Years of Experience</Label>
                                     <Input
                                         id="experience"
@@ -170,17 +195,79 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                                         onChange={(e) => setFormData({ ...formData, experienceYears: parseInt(e.target.value) })}
                                     />
                                 </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="price">Consultation Fee (€)</Label>
+                                    <Input
+                                        id="price"
+                                        type="number"
+                                        value={formData.priceFrom}
+                                        onChange={(e) => setFormData({ ...formData, priceFrom: parseInt(e.target.value) })}
+                                    />
+                                </div>
                             </div>
+                        </CardContent>
+                    </Card>
 
+                    {/* Clinic Address */}
+                    <Card className="border-none shadow-sm">
+                        <CardHeader>
+                            <CardTitle className="text-lg font-bold flex items-center gap-2">
+                                <MapPin className="h-5 w-5 text-primary-500" />
+                                Clinic Address
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="price">Consultation Fee (€)</Label>
-                                <Input
-                                    id="price"
-                                    type="number"
-                                    value={formData.priceFrom}
-                                    onChange={(e) => setFormData({ ...formData, priceFrom: parseInt(e.target.value) })}
+                                <Label>Search Address</Label>
+                                <p className="text-xs text-gray-500 mb-1">
+                                    Start typing your clinic address to auto-fill the fields below
+                                </p>
+                                <LocationAutocomplete
+                                    value={formData.location}
+                                    onChange={(val) => setFormData(prev => ({ ...prev, location: val }))}
+                                    onSelect={handleLocationSelect}
+                                    placeholder="Search for your clinic address..."
                                 />
                             </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="city">City</Label>
+                                    <Input
+                                        id="city"
+                                        value={formData.city}
+                                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                        placeholder="e.g. Thessaloniki"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="streetAddress">Street Address</Label>
+                                    <Input
+                                        id="streetAddress"
+                                        value={formData.streetAddress}
+                                        onChange={(e) => setFormData({ ...formData, streetAddress: e.target.value })}
+                                        placeholder="e.g. Tsimiski"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="houseNumber">House / Building Number</Label>
+                                    <Input
+                                        id="houseNumber"
+                                        value={formData.houseNumber}
+                                        onChange={(e) => setFormData({ ...formData, houseNumber: e.target.value })}
+                                        placeholder="e.g. 42"
+                                    />
+                                </div>
+                            </div>
+
+                            {formData.latitude && formData.longitude && (
+                                <div className="text-xs text-green-600 bg-green-50 p-2 rounded-md border border-green-100">
+                                    ✓ Location coordinates saved — your clinic will appear on the map
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -273,4 +360,25 @@ export function ProfileForm({ initialData }: { initialData: any }) {
             </div>
         </form>
     )
+}
+
+/**
+ * Builds a display location string from structured address fields
+ */
+function buildLocationString(data: { streetAddress?: string; houseNumber?: string; city?: string }): string {
+    const parts: string[] = []
+
+    if (data.streetAddress) {
+        let street = data.streetAddress
+        if (data.houseNumber) {
+            street += ` ${data.houseNumber}`
+        }
+        parts.push(street)
+    }
+
+    if (data.city) {
+        parts.push(data.city)
+    }
+
+    return parts.join(", ")
 }

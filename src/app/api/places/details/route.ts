@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         }
 
         const response = await fetch(
-            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${apiKey}`
+            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,address_components,formatted_address&key=${apiKey}`
         )
 
         if (!response.ok) {
@@ -38,9 +38,34 @@ export async function GET(request: NextRequest) {
         }
 
         const location = data.result.geometry.location
+        const addressComponents = data.result.address_components || []
+
+        // Extract structured address from Google's address components
+        let city = ''
+        let streetAddress = ''
+        let houseNumber = ''
+
+        for (const component of addressComponents) {
+            const types: string[] = component.types || []
+            if (types.includes('locality')) {
+                city = component.long_name
+            } else if (types.includes('administrative_area_level_3') && !city) {
+                // Fallback for cities in some countries
+                city = component.long_name
+            } else if (types.includes('route')) {
+                streetAddress = component.long_name
+            } else if (types.includes('street_number')) {
+                houseNumber = component.long_name
+            }
+        }
+
         return NextResponse.json({
             lat: location.lat,
-            lng: location.lng
+            lng: location.lng,
+            city,
+            streetAddress,
+            houseNumber,
+            formattedAddress: data.result.formatted_address || ''
         })
     } catch (error: any) {
         console.error('Error fetching place details:', error?.message || error)

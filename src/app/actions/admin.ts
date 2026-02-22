@@ -60,6 +60,8 @@ export async function verifyDentist(dentistId: string, status: boolean) {
     })
 
     revalidatePath("/admin/dashboard")
+    revalidatePath("/")
+    revalidatePath("/search")
 }
 
 export async function submitDegreeForVerification(degreeImageUrl: string) {

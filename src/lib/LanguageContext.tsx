@@ -30,7 +30,7 @@ export const translations = {
         'hero.subtitle': 'Book appointments instantly with top-rated dentists near you. Verified reviews, transparent pricing, and premium care.',
         'hero.verified_dentists': 'Verified Dentists',
         'hero.rating': '4.9/5 Average Rating',
-        'hero.happy_patients': '50k+ Happy Patients',
+        'hero.happy_patients': 'Trusted by Patients Across Greece',
 
         // Search Bar
         'search.find_dentist': 'Find a Dentist',
@@ -360,7 +360,7 @@ export const translations = {
         'hero.subtitle': 'Κλείστε ραντεβού άμεσα με τους καλύτερους οδοντιάτρους κοντά σας.',
         'hero.verified_dentists': 'Πιστοποιημένοι Οδοντίατροι',
         'hero.rating': '4.9/5 Μέση Βαθμολογία',
-        'hero.happy_patients': '50k+ Ευχαριστημένοι Ασθενείς',
+        'hero.happy_patients': 'Εμπιστοσύνη Ασθενών σε Όλη την Ελλάδα',
 
         // Search Bar
         'search.find_dentist': 'Βρείτε Οδοντίατρο',

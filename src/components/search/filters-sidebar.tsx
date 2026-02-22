@@ -90,11 +90,11 @@ export function FiltersSidebar() {
         try {
             const response = await fetch(`/api/places/details?placeId=${place.place_id}`)
             if (response.ok) {
-                const coords = await response.json()
+                const details = await response.json()
                 const params = new URLSearchParams(searchParams.toString())
-                params.set('location', place.description)
-                params.set('lat', coords.lat.toString())
-                params.set('lng', coords.lng.toString())
+                params.set('location', details.city || place.description)
+                params.set('lat', details.lat.toString())
+                params.set('lng', details.lng.toString())
                 router.push(`/search?${params.toString()}`)
             }
         } catch (error) {

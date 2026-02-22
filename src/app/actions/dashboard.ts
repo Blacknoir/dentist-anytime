@@ -208,11 +208,16 @@ export async function updateDentistProfile(data: any) {
     })
 
     // 2. Update Dentist Profile
-    return await prisma.dentistProfile.update({
+    const result = await (prisma.dentistProfile as any).update({
         where: { userId: session.user.id },
         data: {
             specialty: data.specialty,
             location: data.location,
+            city: data.city || null,
+            streetAddress: data.streetAddress || null,
+            houseNumber: data.houseNumber || null,
+            latitude: data.latitude || null,
+            longitude: data.longitude || null,
             about: data.about,
             education: data.education,
             experienceYears: data.experienceYears,
@@ -220,6 +225,13 @@ export async function updateDentistProfile(data: any) {
             image: data.image
         }
     })
+
+    revalidatePath('/')
+    revalidatePath('/search')
+    revalidatePath(`/dentist/${result.id}`)
+    revalidatePath('/dashboard')
+
+    return result
 }
 
 export async function updateDentistAvailability(data: any[]) {
