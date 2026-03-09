@@ -17,7 +17,16 @@ export async function createBooking(formData: {
 
     const dentist = await prisma.dentistProfile.findUnique({
         where: { id: formData.dentistProfileId },
-        select: { commissionRate: true, priceFrom: true }
+        select: {
+            commissionRate: true,
+            priceFrom: true,
+            user: { select: { email: true, name: true } }
+        }
+    })
+
+    const patient = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { email: true, name: true }
     })
 
     const price = (dentist?.priceFrom || 50) * 100 // Use dentist's consultation fee (priceFrom) in cents
@@ -36,6 +45,13 @@ export async function createBooking(formData: {
             commissionAmount: commissionAmount
         }
     })
+
+    const dentistEmail = dentist?.user?.email || "Unknown"
+    const patientEmail = patient?.email || session?.user?.email || "Unknown"
+    const bookingDateStr = formData.date.toLocaleString()
+
+    console.log(`[EMAIL MOCK] To: ${dentistEmail}, Subject: New Booking Received, Content: You have a new booking from ${patient?.name || "Patient"} for ${formData.serviceName} on ${bookingDateStr}.`)
+    console.log(`[EMAIL MOCK] To: ${patientEmail}, Subject: Booking Confirmed, Content: Your booking with ${dentist?.user?.name || "Dentist"} for ${formData.serviceName} on ${bookingDateStr} is confirmed.`)
 
     revalidatePath("/booking/success")
     return booking

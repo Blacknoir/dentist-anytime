@@ -41,7 +41,8 @@ export function SearchClient({ initialDentists }: SearchClientProps) {
         price: `€${d.priceFrom}`,
         distance: d.distance,
         latitude: d.latitude,
-        longitude: d.longitude
+        longitude: d.longitude,
+        isStripeEnabled: d.isStripeEnabled
     }))
 
     return (
@@ -147,6 +148,7 @@ export function SearchClient({ initialDentists }: SearchClientProps) {
                                     nextSlots={dentist.nextSlots}
                                     price={dentist.price}
                                     distance={dentist.distance}
+                                    isStripeEnabled={dentist.isStripeEnabled}
                                 />
                             ))}
 

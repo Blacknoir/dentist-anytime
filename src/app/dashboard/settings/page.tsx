@@ -1,10 +1,34 @@
+"use client"
+
+import * as React from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { deleteAccount, signOut } from "@/app/actions/auth"
 
 export default function SettingsPage() {
+    const router = useRouter()
+    const [isDeleting, setIsDeleting] = React.useState(false)
+
+    const handleDelete = async () => {
+        if (window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+            setIsDeleting(true)
+            try {
+                await deleteAccount()
+                await signOut()
+                router.push("/")
+            } catch (error) {
+                console.error("Error deleting account", error)
+                alert("An error occurred while deleting your account. Please try again.")
+            } finally {
+                setIsDeleting(false)
+            }
+        }
+    }
+
     return (
         <div className="space-y-8 max-w-4xl">
             <div>
@@ -44,7 +68,13 @@ export default function SettingsPage() {
                             <Label>Delete Account</Label>
                             <p className="text-sm text-gray-500">Permanently delete your account and all data. This action cannot be undone.</p>
                         </div>
-                        <Button variant="destructive">Delete Account</Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                        >
+                            {isDeleting ? "Deleting..." : "Delete Account"}
+                        </Button>
                     </div>
                 </CardContent>
             </Card>

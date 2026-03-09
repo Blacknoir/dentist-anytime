@@ -10,6 +10,17 @@ import Image from "next/image"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 
+const isValidUrl = (urlStr: string) => {
+    if (!urlStr) return false;
+    try {
+        if (urlStr.startsWith('/')) return true;
+        new URL(urlStr);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export default function AdminDashboard() {
     const { data: session, status } = useSession()
     const [dentists, setDentists] = useState<any[]>([])
@@ -104,11 +115,11 @@ export default function AdminDashboard() {
                                 <CardHeader className="bg-white border-b border-gray-50 pb-4">
                                     <div className="flex items-center gap-4">
                                         <div className="relative h-12 w-12 rounded-full overflow-hidden bg-gray-100">
-                                            {dentist.user.image ? (
+                                            {dentist.user.image && isValidUrl(dentist.user.image) ? (
                                                 <Image src={dentist.user.image} alt="" fill className="object-cover" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center bg-primary-100 text-primary-600 font-bold">
-                                                    {dentist.user.name?.charAt(0)}
+                                                    {dentist.user.name?.charAt(0) || '?'}
                                                 </div>
                                             )}
                                         </div>
@@ -127,7 +138,7 @@ export default function AdminDashboard() {
                                         <p className="text-sm font-medium">{dentist.specialty}</p>
                                     </div>
 
-                                    {dentist.degreeImage ? (
+                                    {dentist.degreeImage && isValidUrl(dentist.degreeImage) ? (
                                         <div className="space-y-2">
                                             <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Degree Document</span>
                                             <div className="relative h-40 w-full rounded-lg border border-gray-200 overflow-hidden group">

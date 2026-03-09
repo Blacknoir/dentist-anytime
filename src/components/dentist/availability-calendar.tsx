@@ -210,10 +210,10 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
             <Button
                 className="w-full h-12 rounded-xl text-sm font-bold shadow-lg shadow-primary-100"
                 size="lg"
-                disabled={!selectedSlot || isBooking}
+                disabled={!selectedSlot || isBooking || !dentist.isStripeEnabled}
                 onClick={handleBook}
             >
-                {isBooking ? "Booking..." : selectedSlot ? `Book for ${selectedSlot}` : "Select a time"}
+                {isBooking ? "Booking..." : !dentist.isStripeEnabled ? "Booking Unavailable" : selectedSlot ? `Book for ${selectedSlot}` : "Select a time"}
             </Button>
 
             <p className="text-center text-[10px] text-gray-400 mt-4 leading-relaxed uppercase tracking-tighter">
