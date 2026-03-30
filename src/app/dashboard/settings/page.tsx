@@ -8,13 +8,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { deleteAccount, signOut } from "@/app/actions/auth"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export default function SettingsPage() {
     const router = useRouter()
+    const { t } = useLanguage()
     const [isDeleting, setIsDeleting] = React.useState(false)
 
     const handleDelete = async () => {
-        if (window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+        if (window.confirm(t('settings.delete_confirm'))) {
             setIsDeleting(true)
             try {
                 await deleteAccount()
@@ -22,7 +24,7 @@ export default function SettingsPage() {
                 router.push("/")
             } catch (error) {
                 console.error("Error deleting account", error)
-                alert("An error occurred while deleting your account. Please try again.")
+                alert(t('settings.delete_error'))
             } finally {
                 setIsDeleting(false)
             }
@@ -32,26 +34,26 @@ export default function SettingsPage() {
     return (
         <div className="space-y-8 max-w-4xl">
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                <p className="text-gray-500">Manage your account settings and preferences.</p>
+                <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
+                <p className="text-gray-500">{t('settings.subtitle')}</p>
             </div>
 
             <Card className="border-none shadow-sm">
                 <CardHeader>
-                    <CardTitle className="text-lg font-bold">Email Notifications</CardTitle>
+                    <CardTitle className="text-lg font-bold">{t('settings.email_notif')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                            <Label>New Bookings</Label>
-                            <p className="text-sm text-gray-500">Receive an email when a new patient books an appointment.</p>
+                            <Label>{t('settings.new_bookings')}</Label>
+                            <p className="text-sm text-gray-500">{t('settings.new_bookings_desc')}</p>
                         </div>
                         <Switch defaultChecked />
                     </div>
                     <div className="flex items-center justify-between border-t border-gray-50 pt-4">
                         <div className="space-y-0.5">
-                            <Label>Reminders</Label>
-                            <p className="text-sm text-gray-500">Receive reminders about upcoming appointments.</p>
+                            <Label>{t('settings.reminders')}</Label>
+                            <p className="text-sm text-gray-500">{t('settings.reminders_desc')}</p>
                         </div>
                         <Switch defaultChecked />
                     </div>
@@ -60,20 +62,20 @@ export default function SettingsPage() {
 
             <Card className="border-none shadow-sm">
                 <CardHeader>
-                    <CardTitle className="text-lg font-bold text-red-600">Danger Zone</CardTitle>
+                    <CardTitle className="text-lg font-bold text-red-600">{t('settings.danger_zone')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="flex items-center justify-between">
                         <div className="space-y-0.5">
-                            <Label>Delete Account</Label>
-                            <p className="text-sm text-gray-500">Permanently delete your account and all data. This action cannot be undone.</p>
+                            <Label>{t('settings.delete_account')}</Label>
+                            <p className="text-sm text-gray-500">{t('settings.delete_account_desc')}</p>
                         </div>
                         <Button
                             variant="destructive"
                             onClick={handleDelete}
                             disabled={isDeleting}
                         >
-                            {isDeleting ? "Deleting..." : "Delete Account"}
+                            {isDeleting ? t('settings.deleting') : t('settings.delete_account')}
                         </Button>
                     </div>
                 </CardContent>

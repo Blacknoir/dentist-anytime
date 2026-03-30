@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { BookingSteps } from "@/components/booking/booking-steps"
 import { StepService } from "@/components/booking/step-service"
@@ -14,17 +14,20 @@ import { useLanguage } from "@/lib/LanguageContext"
 
 interface BookingClientProps {
     dentist: any
+    preselectedDate?: string
+    preselectedTime?: string
+    preselectedService?: string
 }
 
-export function BookingClient({ dentist }: BookingClientProps) {
+export function BookingClient({ dentist, preselectedDate, preselectedTime, preselectedService }: BookingClientProps) {
     const { t } = useLanguage()
     const router = useRouter()
     const [currentStep, setCurrentStep] = React.useState(1)
 
     const [bookingData, setBookingData] = React.useState({
-        service: null as string | null,
-        date: t('pages.booking.mock_date').split(' • ')[0],
-        time: t('pages.booking.mock_date').split(' • ')[1],
+        service: preselectedService || null as string | null,
+        date: preselectedDate || t('pages.booking.mock_date').split(' • ')[0],
+        time: preselectedTime || t('pages.booking.mock_date').split(' • ')[1],
         patient: null as PatientFormData | null,
     })
 
@@ -49,10 +52,22 @@ export function BookingClient({ dentist }: BookingClientProps) {
         setPaymentIntentId(id)
         setIsSubmitting(true)
         try {
+            // Build the actual booking date from selected date + time
+            let bookingDate: Date
+            if (bookingData.date && bookingData.time) {
+                const [hours, minutes] = bookingData.time.split(':').map(Number)
+                bookingDate = new Date(bookingData.date)
+                if (!isNaN(hours) && !isNaN(minutes)) {
+                    bookingDate.setHours(hours, minutes, 0, 0)
+                }
+            } else {
+                bookingDate = new Date()
+            }
+
             await createBooking({
                 dentistProfileId: dentistId,
                 serviceName: bookingData.service || "Consultation",
-                date: new Date(), // In a real app, use the selected date
+                date: bookingDate,
                 ...({ stripePaymentId: id } as any)
             })
             router.push("/booking/success")
@@ -73,8 +88,15 @@ export function BookingClient({ dentist }: BookingClientProps) {
 
     return (
         <div className="min-h-screen bg-transparent flex flex-col items-center py-6 px-4">
-            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
-                <div className="bg-white border-b border-gray-50 p-6 md:p-8">
+            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden relative">
+                <div className="bg-white border-b border-gray-50 p-6 md:p-8 relative">
+                    <button
+                        onClick={() => router.push(`/dentist/${dentistId}`)}
+                        className="absolute top-4 right-4 p-2 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                        aria-label={t('pages.booking.cancel') || 'Cancel booking'}
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
                     <h1 className="text-2xl md:text-3xl font-black text-center text-gray-900 mb-2">
                         {t('pages.booking.title')}
                     </h1>

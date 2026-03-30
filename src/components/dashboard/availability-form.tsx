@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation"
 import { CalendarAvailability } from "./calendar-availability"
 
 const DAYS = [
-    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
 ]
 
 export function AvailabilityForm({ initialData, exceptions = [] }: { initialData: any[], exceptions?: any[] }) {
@@ -96,8 +96,8 @@ export function AvailabilityForm({ initialData, exceptions = [] }: { initialData
         <div className="space-y-8 max-w-5xl">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Manage Availability</h1>
-                    <p className="text-gray-500 text-sm">Organize your weekly schedule and handle specific date overrides.</p>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('availability.manage')}</h1>
+                    <p className="text-gray-500 text-sm">{t('availability.manage_desc')}</p>
                 </div>
 
                 <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
@@ -109,7 +109,7 @@ export function AvailabilityForm({ initialData, exceptions = [] }: { initialData
                         )}
                     >
                         <Calendar className="h-4 w-4" />
-                        Calendar View
+                        {t('availability.calendar_view')}
                     </button>
                     <button
                         onClick={() => setActiveTab('weekly')}
@@ -119,7 +119,7 @@ export function AvailabilityForm({ initialData, exceptions = [] }: { initialData
                         )}
                     >
                         <Settings2 className="h-4 w-4" />
-                        Weekly Schedule
+                        {t('availability.weekly_schedule')}
                     </button>
                 </div>
             </div>
@@ -129,10 +129,9 @@ export function AvailabilityForm({ initialData, exceptions = [] }: { initialData
                     <div className="bg-primary-50 border border-primary-100 p-4 rounded-xl flex items-start gap-3">
                         <Calendar className="h-5 w-5 text-primary-600 shrink-0 mt-0.5" />
                         <div>
-                            <p className="text-sm font-bold text-primary-900">Custom Day Organizer</p>
+                            <p className="text-sm font-bold text-primary-900">{t('availability.custom_day')}</p>
                             <p className="text-xs text-primary-700 mt-0.5 leading-relaxed">
-                                Click on any day to precisely adjust your working hours for that specific date.
-                                You can add multiple time blocks (e.g., morning and afternoon) or mark yourself as closed.
+                                {t('availability.custom_day_desc')}
                             </p>
                         </div>
                     </div>
@@ -143,18 +142,18 @@ export function AvailabilityForm({ initialData, exceptions = [] }: { initialData
                     <Card className="border-none shadow-sm">
                         <CardHeader className="flex flex-row items-center justify-between border-b border-gray-50 pb-6">
                             <div>
-                                <CardTitle className="text-lg font-bold">Standard Weekly Schedule</CardTitle>
-                                <p className="text-xs text-gray-500 mt-1">These blocks will repeat every week unless overridden in the calendar.</p>
+                                <CardTitle className="text-lg font-bold">{t('availability.standard_weekly')}</CardTitle>
+                                <p className="text-xs text-gray-500 mt-1">{t('availability.standard_weekly_desc')}</p>
                             </div>
                             <Button type="submit" disabled={loading} className="gap-2 bg-primary-600 hover:bg-primary-700 shadow-lg shadow-primary-100 h-11 px-6">
-                                {loading ? "Saving..." : <><Save className="h-4 w-4" /> Save Weekly Schedule</>}
+                                {loading ? t('profile.saving') : <><Save className="h-4 w-4" /> {t('availability.save_weekly')}</>}
                             </Button>
                         </CardHeader>
                         <CardContent className="divide-y divide-gray-50">
                             {availability.map((dayItem, dayIndex) => (
                                 <div key={dayItem.day} className="flex flex-col md:flex-row md:items-start gap-4 py-8 px-2 hover:bg-gray-50/10 transition-colors">
                                     <div className="w-40 flex flex-col gap-2">
-                                        <Label className="text-sm font-black text-gray-900 uppercase tracking-tight">{dayItem.day}</Label>
+                                        <Label className="text-sm font-black text-gray-900 uppercase tracking-tight">{t(`days.${dayItem.day.toLowerCase()}` as any)}</Label>
                                         <button
                                             type="button"
                                             onClick={() => toggleDay(dayIndex)}
@@ -165,7 +164,7 @@ export function AvailabilityForm({ initialData, exceptions = [] }: { initialData
                                                     : "bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200"
                                             )}
                                         >
-                                            {dayItem.enabled ? "Enabled" : "Disabled"}
+                                            {dayItem.enabled ? t('availability.enabled') : t('availability.disabled')}
                                         </button>
                                     </div>
 
@@ -215,12 +214,12 @@ export function AvailabilityForm({ initialData, exceptions = [] }: { initialData
                                                     onClick={() => addSlot(dayIndex)}
                                                 >
                                                     <PlusCircle className="h-4 w-4" />
-                                                    Add Another Block
+                                                    {t('availability.add_block')}
                                                 </Button>
                                             </div>
                                         ) : (
                                             <div className="py-4 border-2 border-dashed border-gray-100 rounded-2xl flex items-center justify-center">
-                                                <p className="text-xs text-gray-400 font-medium italic">No hours defined. Clinic is closed on this day.</p>
+                                                <p className="text-xs text-gray-400 font-medium italic">{t('availability.no_hours')}</p>
                                             </div>
                                         )}
                                     </div>

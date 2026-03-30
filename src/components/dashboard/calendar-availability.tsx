@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils"
 import { updateDayAvailability, resetDayAvailability } from "@/app/actions/dashboard"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
+import { useLanguage } from "@/lib/LanguageContext"
 
 interface CalendarAvailabilityProps {
     exceptions: any[]
@@ -31,6 +32,7 @@ interface CalendarAvailabilityProps {
 
 export function CalendarAvailability({ exceptions, weeklyAvailability }: CalendarAvailabilityProps) {
     const router = useRouter()
+    const { t } = useLanguage()
     const [currentDate, setCurrentDate] = React.useState(new Date())
     const [loading, setLoading] = React.useState(false)
     const [selectedDay, setSelectedDay] = React.useState<Date | null>(null)
@@ -149,12 +151,12 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
     }
 
     const renderDays = () => {
-        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        const days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
         return (
             <div className="grid grid-cols-7 border-b border-gray-50 bg-gray-50/50">
                 {days.map((day) => (
                     <div key={day} className="py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        {day}
+                        {t(`days.${day}` as any)}
                     </div>
                 ))}
             </div>
@@ -233,16 +235,16 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
                                         ))
                                     ) : (
                                         <div className="text-[10px] font-bold text-red-700 bg-red-50/80 border border-red-100 px-2 py-1 rounded-md text-center">
-                                            Closed
+                                            {t('availability.closed')}
                                         </div>
                                     )}
                                     {displaySlots.length > 2 && (
-                                        <div className="text-[8px] text-gray-400 font-bold ml-1">+{displaySlots.length - 2} more</div>
+                                        <div className="text-[8px] text-gray-400 font-bold ml-1">+{displaySlots.length - 2} {t('availability.more')}</div>
                                     )}
                                     {isOverride && (
                                         <div className="inline-flex items-center gap-1 text-[8px] text-primary-600 font-black uppercase tracking-tighter bg-white shadow-sm px-1 rounded">
                                             <AlertCircle className="h-2 w-2" />
-                                            Override
+                                            {t('availability.override')}
                                         </div>
                                     )}
                                 </div>
@@ -251,7 +253,7 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
                             {isCurrentMonth && (
                                 <div className="absolute inset-x-0 bottom-0 py-1.5 opacity-0 group-hover:opacity-100 bg-primary-600 flex items-center justify-center transition-all translate-y-full group-hover:translate-y-0 z-20">
                                     <span className="text-[10px] font-black text-white uppercase tracking-widest">
-                                        Edit All Hours
+                                        {t('availability.edit_all_hours')}
                                     </span>
                                 </div>
                             )}
@@ -270,15 +272,15 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
             <div className="p-5 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center gap-6">
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm" />
-                    <span className="text-xs text-gray-600 font-bold uppercase tracking-tight">Available</span>
+                    <span className="text-xs text-gray-600 font-bold uppercase tracking-tight">{t('availability.available')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-red-500 shadow-sm" />
-                    <span className="text-xs text-gray-600 font-bold uppercase tracking-tight">Closed</span>
+                    <span className="text-xs text-gray-600 font-bold uppercase tracking-tight">{t('availability.closed')}</span>
                 </div>
                 <div className="flex items-center gap-2 ml-auto text-xs text-gray-500 bg-white px-3 py-1.5 rounded-full border border-gray-200">
                     <Info className="h-3.5 w-3.5 text-primary-500" />
-                    <span>Click any day to manage multiple time blocks and gaps.</span>
+                    <span>{t('availability.click_any_day')}</span>
                 </div>
             </div>
 
@@ -305,7 +307,7 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
                                         <Clock className="h-5 w-5 text-primary-600" />
                                     </div>
                                     <div>
-                                        <h3 className="text-lg font-bold text-gray-900 leading-none">Edit Day Organizer</h3>
+                                        <h3 className="text-lg font-bold text-gray-900 leading-none">{t('availability.edit_day')}</h3>
                                         <p className="text-xs text-gray-500 mt-1">{selectedDay && format(selectedDay, "EEEE, MMMM d, yyyy")}</p>
                                     </div>
                                 </div>
@@ -317,8 +319,8 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
                             <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto">
                                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
                                     <div className="space-y-0.5">
-                                        <Label className="text-sm font-bold text-gray-900">Clinic Status</Label>
-                                        <p className="text-xs text-gray-500">Is the clinic accepting appointments for this day?</p>
+                                        <Label className="text-sm font-bold text-gray-900">{t('availability.clinic_status')}</Label>
+                                        <p className="text-xs text-gray-500">{t('availability.clinic_status_desc')}</p>
                                     </div>
                                     <Switch
                                         checked={!isClosed}
@@ -328,13 +330,13 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
 
                                 {!isClosed && (
                                     <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-300">
-                                        <Label className="text-sm font-black text-gray-900 uppercase tracking-tight">Available Time Blocks</Label>
+                                        <Label className="text-sm font-black text-gray-900 uppercase tracking-tight">{t('availability.available_blocks')}</Label>
 
                                         {slots.map((slot, index) => (
                                             <div key={index} className="flex flex-col sm:flex-row items-center gap-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 relative group">
                                                 <div className="grid grid-cols-2 gap-4 flex-1 w-full">
                                                     <div className="space-y-2">
-                                                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Starts At</Label>
+                                                        <Label className="text-[10px] font-bold text-gray-400 uppercase">{t('availability.starts_at')}</Label>
                                                         <div className="relative">
                                                             <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-500" />
                                                             <Input
@@ -346,7 +348,7 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
                                                         </div>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label className="text-[10px] font-bold text-gray-400 uppercase">Ends At</Label>
+                                                        <Label className="text-[10px] font-bold text-gray-400 uppercase">{t('availability.ends_at')}</Label>
                                                         <div className="relative">
                                                             <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-500" />
                                                             <Input
@@ -375,7 +377,7 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
                                             onClick={addSlot}
                                         >
                                             <PlusCircle className="h-5 w-5" />
-                                            Add Another Time Block
+                                            {t('availability.add_time_block')}
                                         </Button>
                                     </div>
                                 )}
@@ -386,9 +388,9 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
                                             <AlertCircle className="h-6 w-6 text-red-600" />
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-red-900">Clinic is CLOSED</h4>
+                                            <h4 className="font-bold text-red-900">{t('availability.clinic_is_closed')}</h4>
                                             <p className="text-xs text-red-700 leading-relaxed mt-1">
-                                                No slots will be generated. This day will be completely blocked for all patients.
+                                                {t('availability.no_slots')}
                                             </p>
                                         </div>
                                     </div>
@@ -403,14 +405,14 @@ export function CalendarAvailability({ exceptions, weeklyAvailability }: Calenda
                                     className="flex-1 h-12 rounded-xl text-gray-600 font-bold border-gray-300 hover:bg-white hover:text-red-600 hover:border-red-200"
                                 >
                                     <Trash2 className="h-4 w-4 mr-2" />
-                                    Reset Day
+                                    {t('availability.reset_day')}
                                 </Button>
                                 <Button
                                     onClick={handleSave}
                                     disabled={loading}
                                     className="flex-[2] h-12 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-bold shadow-lg shadow-primary-200"
                                 >
-                                    {loading ? "Saving..." : <><Save className="h-4 w-4" /> Save Variations</>}
+                                    {loading ? t('profile.saving') : <><Save className="h-4 w-4" /> {t('availability.save_variations')}</>}
                                 </Button>
                             </div>
                         </motion.div>

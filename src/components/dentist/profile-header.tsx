@@ -46,7 +46,7 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
                                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{dentist.user.name}</h1>
                                     <ShieldCheck className="h-6 w-6 text-primary-500" />
                                 </div>
-                                <p className="text-lg text-primary-600 font-medium mb-2">{dentist.specialty}</p>
+                                <p className="text-lg text-primary-600 font-medium mb-2">{t(dentist.specialty)}</p>
 
                                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
                                     <div className="flex items-center gap-1">
@@ -56,12 +56,12 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <MapPin className="h-4 w-4" />
-                                        <span>{dentist.location}</span>
+                                        <span>{t(dentist.location)}</span>
                                     </div>
                                     {dentist.availability && dentist.availability.length > 0 && (
                                         <div className="flex items-center gap-1 text-green-600 font-medium">
                                             <Clock className="h-4 w-4" />
-                                            <span>Available Today</span>
+                                            <span>{t('pages.profile.available_today')}</span>
                                         </div>
                                     )}
                                 </div>

@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Trash2, Save, Clock, Euro } from "lucide-react"
+import { Save, Clock, Euro, PlusCircle, Trash2, Plus } from "lucide-react"
 import { updateDentistServices } from "@/app/actions/dashboard"
 import { useRouter } from "next/navigation"
+import { useLanguage } from "@/lib/LanguageContext"
 
 export function ServicesForm({ initialData }: { initialData: any[] }) {
     const router = useRouter()
+    const { t } = useLanguage()
     const [loading, setLoading] = useState(false)
     const [services, setServices] = useState(initialData || [])
 
@@ -32,10 +34,10 @@ export function ServicesForm({ initialData }: { initialData: any[] }) {
         try {
             await updateDentistServices(services)
             router.refresh()
-            alert("Services updated!")
+            alert(t('services.updated'))
         } catch (error) {
             console.error(error)
-            alert("Failed to update services.")
+            alert(t('services.failed'))
         } finally {
             setLoading(false)
         }
@@ -45,15 +47,15 @@ export function ServicesForm({ initialData }: { initialData: any[] }) {
         <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Services & Pricing</h1>
-                    <p className="text-gray-500">List the dental services you offer and their prices.</p>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('services.title')}</h1>
+                    <p className="text-gray-500">{t('services.subtitle')}</p>
                 </div>
                 <div className="flex gap-3">
                     <Button type="button" variant="outline" onClick={addService} className="gap-2">
-                        <Plus className="h-4 w-4" /> Add Service
+                        <Plus className="h-4 w-4" /> {t('services.add')}
                     </Button>
                     <Button type="submit" disabled={loading} className="gap-2">
-                        {loading ? "Saving..." : <><Save className="h-4 w-4" /> Save Changes</>}
+                        {loading ? t('profile.saving') : <><Save className="h-4 w-4" /> {t('profile.save_changes')}</>}
                     </Button>
                 </div>
             </div>
@@ -65,15 +67,15 @@ export function ServicesForm({ initialData }: { initialData: any[] }) {
                             <CardContent className="p-6">
                                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
                                     <div className="md:col-span-5 space-y-2">
-                                        <Label>Service Name</Label>
+                                        <Label>{t('services.name')}</Label>
                                         <Input
-                                            placeholder="e.g. Teeth Whitening"
+                                            placeholder={t('services.name_placeholder')}
                                             value={service.name}
                                             onChange={(e) => updateService(service.id, 'name', e.target.value)}
                                         />
                                     </div>
                                     <div className="md:col-span-3 space-y-2">
-                                        <Label>Price (€)</Label>
+                                        <Label>{t('services.price')}</Label>
                                         <div className="relative">
                                             <Euro className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                             <Input
@@ -85,7 +87,7 @@ export function ServicesForm({ initialData }: { initialData: any[] }) {
                                         </div>
                                     </div>
                                     <div className="md:col-span-3 space-y-2">
-                                        <Label>Duration (min)</Label>
+                                        <Label>{t('services.duration')}</Label>
                                         <div className="relative">
                                             <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                             <Input
@@ -113,7 +115,7 @@ export function ServicesForm({ initialData }: { initialData: any[] }) {
                     ))
                 ) : (
                     <div className="text-center py-12 bg-white rounded-xl border border-dashed border-gray-200">
-                        <p className="text-gray-500">No services added yet. Click "Add Service" to start.</p>
+                        <p className="text-gray-500">{t('services.no_services')}</p>
                     </div>
                 )}
             </div>

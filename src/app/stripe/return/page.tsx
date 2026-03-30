@@ -1,23 +1,40 @@
 import { redirect } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
-import { CheckCircle } from "lucide-react"
+import { auth } from "@/auth"
+import { prisma } from "@/lib/prisma"
+import { stripe } from "@/lib/stripe"
+import { StripeReturnClient } from "./stripe-return-client"
 
-export default function StripeReturnPage() {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6">
-            <div className="p-4 bg-green-50 text-green-600 rounded-full">
-                <CheckCircle className="h-12 w-12" />
-            </div>
-            <div className="text-center space-y-2">
-                <h1 className="text-2xl font-bold text-gray-900">Payment Setup Complete!</h1>
-                <p className="text-gray-500 max-w-md mx-auto">
-                    Your Stripe account has been successfully connected. You can now accept payments for your bookings.
-                </p>
-            </div>
-            <Button asChild className="mt-8">
-                <Link href="/dashboard">Return to Dashboard</Link>
-            </Button>
-        </div>
-    )
+export default async function StripeReturnPage() {
+    const session = await auth()
+
+    if (!session?.user?.id) {
+        redirect("/login")
+    }
+
+    // Find the dentist profile
+    const dentist = await prisma.dentistProfile.findUnique({
+        where: { userId: session.user.id },
+    })
+
+    let isFullyConnected = false
+
+    if (dentist?.stripeAccountId) {
+        try {
+            // Verify the Stripe account status
+            const account = await stripe.accounts.retrieve(dentist.stripeAccountId)
+
+            if (account.details_submitted && account.charges_enabled) {
+                // Account is fully set up - enable Stripe on the profile
+                await prisma.dentistProfile.update({
+                    where: { id: dentist.id },
+                    data: { isStripeEnabled: true },
+                })
+                isFullyConnected = true
+            }
+        } catch (error) {
+            console.error("Error verifying Stripe account:", error)
+        }
+    }
+
+    return <StripeReturnClient isFullyConnected={isFullyConnected} />
 }

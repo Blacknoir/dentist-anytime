@@ -66,8 +66,18 @@ export async function getStripeAccountStatus() {
 
     try {
         const account = await stripe.accounts.retrieve(dentist.stripeAccountId)
+        const isConnected = !!(account.details_submitted && account.charges_enabled)
+
+        // Keep isStripeEnabled in sync with actual Stripe account status
+        if (isConnected && !(dentist as any).isStripeEnabled) {
+            await prisma.dentistProfile.update({
+                where: { id: dentist.id },
+                data: { isStripeEnabled: true },
+            })
+        }
+
         return {
-            isConnected: account.details_submitted && account.charges_enabled,
+            isConnected,
             detailsSubmitted: account.details_submitted,
             chargesEnabled: account.charges_enabled
         }

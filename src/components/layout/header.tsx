@@ -116,14 +116,14 @@ export function Header() {
                                         href="/dashboard"
                                         className="text-sm font-semibold text-primary-600 hover:text-primary-700 transition-colors px-3 py-1.5 bg-primary-50 rounded-full"
                                     >
-                                        Dashboard
+                                        {t('nav.dashboard')}
                                     </Link>
                                 ) : (session.user as any).role === "ADMIN" && (
                                     <Link
                                         href="/admin/dashboard"
                                         className="text-sm font-semibold text-primary-600 hover:text-primary-700 transition-colors px-3 py-1.5 bg-primary-50 rounded-full"
                                     >
-                                        Admin Dashboard
+                                        {t('nav.admin_dashboard')}
                                     </Link>
                                 )}
                                 <Link
@@ -248,7 +248,7 @@ export function Header() {
                                         className="w-full"
                                     >
                                         <Button variant="outline" className="w-full justify-center border-primary-200 text-primary-600">
-                                            Go to Dashboard
+                                            {t('nav.go_dashboard')}
                                         </Button>
                                     </Link>
                                 ) : (session.user as any).role === "ADMIN" && (
@@ -258,7 +258,7 @@ export function Header() {
                                         className="w-full"
                                     >
                                         <Button variant="outline" className="w-full justify-center border-primary-200 text-primary-600">
-                                            Go to Admin Dashboard
+                                            {t('nav.go_admin_dashboard')}
                                         </Button>
                                     </Link>
                                 )}

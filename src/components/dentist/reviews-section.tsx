@@ -92,7 +92,7 @@ export function ReviewsSection({ rating, reviewCount }: ReviewsSectionProps) {
             ) : (
                 <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                     <Star className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-                    <p className="text-gray-500">No reviews yet for this dentist.</p>
+                    <p className="text-gray-500">{t('pages.profile.no_reviews')}</p>
                 </div>
             )}
         </div>

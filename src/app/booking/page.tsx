@@ -3,11 +3,12 @@ import { BookingClient } from "@/components/booking/booking-client"
 import { redirect } from "next/navigation"
 
 interface BookingPageProps {
-    searchParams: { dentistId?: string }
+    searchParams: Promise<{ dentistId?: string; date?: string; time?: string; service?: string }>
 }
 
 export default async function BookingPage({ searchParams }: BookingPageProps) {
-    const dentistId = searchParams.dentistId
+    const params = await searchParams
+    const dentistId = params.dentistId
 
     if (!dentistId) {
         redirect("/search")
@@ -21,7 +22,12 @@ export default async function BookingPage({ searchParams }: BookingPageProps) {
 
     return (
         <div className="pt-24 pb-20">
-            <BookingClient dentist={dentist} />
+            <BookingClient
+                dentist={dentist}
+                preselectedDate={params.date}
+                preselectedTime={params.time}
+                preselectedService={params.service}
+            />
         </div>
     )
 }

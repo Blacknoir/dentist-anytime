@@ -108,11 +108,11 @@ export function ProfileForm({ initialData }: { initialData: any }) {
         <form onSubmit={handleSubmit} className="space-y-8 max-w-4xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-xl md:text-2xl font-bold text-gray-900 line-clamp-1">Public Profile</h1>
-                    <p className="text-sm text-gray-500">Manage how your profile appears to patients.</p>
+                    <h1 className="text-xl md:text-2xl font-bold text-gray-900 line-clamp-1">{t('profile.title')}</h1>
+                    <p className="text-sm text-gray-500">{t('profile.subtitle')}</p>
                 </div>
                 <Button type="submit" disabled={loading} className="gap-2 w-full sm:w-auto">
-                    {loading ? "Saving..." : <><Save className="h-4 w-4" /> Save Changes</>}
+                    {loading ? t('profile.saving') : <><Save className="h-4 w-4" /> {t('profile.save_changes')}</>}
                 </Button>
             </div>
 
@@ -120,7 +120,7 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                 {/* Profile Photo */}
                 <Card className="lg:col-span-1 border-none shadow-sm h-fit">
                     <CardHeader>
-                        <CardTitle className="text-sm font-bold uppercase tracking-wider text-gray-500">Profile Photo</CardTitle>
+                        <CardTitle className="text-sm font-bold uppercase tracking-wider text-gray-500">{t('profile.photo_title')}</CardTitle>
                     </CardHeader>
                     <CardContent className="flex flex-col items-center">
                         <div className="relative w-32 h-32 rounded-2xl overflow-hidden mb-4 border-4 border-gray-50 shadow-inner bg-gray-100">
@@ -151,10 +151,10 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                             className="w-full gap-2"
                             onClick={() => fileInputRef.current?.click()}
                         >
-                            <Upload className="h-4 w-4" /> Change Photo
+                            <Upload className="h-4 w-4" /> {t('profile.change_photo')}
                         </Button>
                         <p className="text-xs text-gray-400 mt-4 text-center">
-                            JPG, PNG or GIF. Max size 2MB.
+                            {t('profile.photo_hint')}
                         </p>
                     </CardContent>
                 </Card>
@@ -163,12 +163,12 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                 <div className="lg:col-span-2 space-y-6">
                     <Card className="border-none shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg font-bold">Basic Information</CardTitle>
+                            <CardTitle className="text-lg font-bold">{t('profile.basic_info')}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="name">Full Name</Label>
+                                    <Label htmlFor="name">{t('profile.full_name')}</Label>
                                     <Input
                                         id="name"
                                         value={formData.name}
@@ -176,7 +176,7 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="specialty">Specialty</Label>
+                                    <Label htmlFor="specialty">{t('profile.specialty')}</Label>
                                     <Input
                                         id="specialty"
                                         value={formData.specialty}
@@ -187,7 +187,7 @@ export function ProfileForm({ initialData }: { initialData: any }) {
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="experience">Years of Experience</Label>
+                                    <Label htmlFor="experience">{t('profile.experience')}</Label>
                                     <Input
                                         id="experience"
                                         type="number"
@@ -196,7 +196,7 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="price">Consultation Fee (€)</Label>
+                                    <Label htmlFor="price">{t('profile.price')}</Label>
                                     <Input
                                         id="price"
                                         type="number"
@@ -213,59 +213,59 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                         <CardHeader>
                             <CardTitle className="text-lg font-bold flex items-center gap-2">
                                 <MapPin className="h-5 w-5 text-primary-500" />
-                                Clinic Address
+                                {t('profile.clinic_address')}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label>Search Address</Label>
+                                <Label>{t('profile.search_address')}</Label>
                                 <p className="text-xs text-gray-500 mb-1">
-                                    Start typing your clinic address to auto-fill the fields below
+                                    {t('profile.search_address_hint')}
                                 </p>
                                 <LocationAutocomplete
                                     value={formData.location}
                                     onChange={(val) => setFormData(prev => ({ ...prev, location: val }))}
                                     onSelect={handleLocationSelect}
-                                    placeholder="Search for your clinic address..."
+                                    placeholder={t('profile.search_placeholder')}
                                 />
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="city">City</Label>
+                                    <Label htmlFor="city">{t('profile.city')}</Label>
                                     <Input
                                         id="city"
                                         value={formData.city}
                                         onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                                        placeholder="e.g. Thessaloniki"
+                                        placeholder={t('profile.city_placeholder')}
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="streetAddress">Street Address</Label>
+                                    <Label htmlFor="streetAddress">{t('profile.street')}</Label>
                                     <Input
                                         id="streetAddress"
                                         value={formData.streetAddress}
                                         onChange={(e) => setFormData({ ...formData, streetAddress: e.target.value })}
-                                        placeholder="e.g. Tsimiski"
+                                        placeholder={t('profile.street_placeholder')}
                                     />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label htmlFor="houseNumber">House / Building Number</Label>
+                                    <Label htmlFor="houseNumber">{t('profile.house_number')}</Label>
                                     <Input
                                         id="houseNumber"
                                         value={formData.houseNumber}
                                         onChange={(e) => setFormData({ ...formData, houseNumber: e.target.value })}
-                                        placeholder="e.g. 42"
+                                        placeholder={t('profile.house_number_placeholder')}
                                     />
                                 </div>
                             </div>
 
                             {formData.latitude && formData.longitude && (
                                 <div className="text-xs text-green-600 bg-green-50 p-2 rounded-md border border-green-100">
-                                    ✓ Location coordinates saved — your clinic will appear on the map
+                                    {t('profile.coordinates_saved')}
                                 </div>
                             )}
                         </CardContent>
@@ -273,27 +273,27 @@ export function ProfileForm({ initialData }: { initialData: any }) {
 
                     <Card className="border-none shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg font-bold">Professional Bio</CardTitle>
+                            <CardTitle className="text-lg font-bold">{t('profile.bio_title')}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="about">About Me</Label>
+                                <Label htmlFor="about">{t('profile.about_me')}</Label>
                                 <Textarea
                                     id="about"
                                     rows={5}
                                     value={formData.about}
                                     onChange={(e) => setFormData({ ...formData, about: e.target.value })}
-                                    placeholder="Tell patients about your experience and approach to care..."
+                                    placeholder={t('profile.about_placeholder')}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="education">Education & Certifications</Label>
+                                <Label htmlFor="education">{t('profile.education')}</Label>
                                 <Textarea
                                     id="education"
                                     rows={3}
                                     value={formData.education}
                                     onChange={(e) => setFormData({ ...formData, education: e.target.value })}
-                                    placeholder="List your degrees and specialized training..."
+                                    placeholder={t('profile.education_placeholder')}
                                 />
                             </div>
                         </CardContent>
@@ -303,13 +303,13 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                     <Card className="border-none shadow-sm border-2 border-primary-100">
                         <CardHeader>
                             <CardTitle className="text-lg font-bold flex items-center justify-between">
-                                Verification Status
+                                {t('profile.verification_status')}
                                 {initialData?.isVerified ? (
-                                    <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-bold uppercase tracking-wider">Verified</span>
+                                    <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-bold uppercase tracking-wider">{t('profile.verified')}</span>
                                 ) : initialData?.isPendingVerification ? (
-                                    <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-bold uppercase tracking-wider">Under Review</span>
+                                    <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full font-bold uppercase tracking-wider">{t('profile.under_review')}</span>
                                 ) : (
-                                    <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-bold uppercase tracking-wider">Not Verified</span>
+                                    <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-bold uppercase tracking-wider">{t('profile.not_verified')}</span>
                                 )}
                             </CardTitle>
                         </CardHeader>
@@ -317,17 +317,17 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                             {!initialData?.isVerified && (
                                 <div className="space-y-4">
                                     <p className="text-sm text-gray-500">
-                                        To activate your profile and allow patients to book appointments, you must upload your professional degree or certification for review.
+                                        {t('profile.verification_hint')}
                                     </p>
 
                                     {!initialData?.isPendingVerification ? (
                                         <div className="space-y-2">
-                                            <Label htmlFor="degree">Upload Degree (Image URL)</Label>
+                                            <Label htmlFor="degree">{t('profile.upload_degree')}</Label>
                                             <div className="flex flex-col sm:flex-row gap-2">
                                                 <Input
                                                     id="degree"
                                                     padding-right="2"
-                                                    placeholder="Paste image URL of your degree"
+                                                    placeholder={t('profile.degree_placeholder')}
                                                     value={degreeUrl}
                                                     onChange={(e) => setDegreeUrl(e.target.value)}
                                                 />
@@ -337,13 +337,13 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                                                     disabled={!degreeUrl || loading}
                                                     className="w-full sm:w-auto"
                                                 >
-                                                    Submit
+                                                    {t('profile.submit')}
                                                 </Button>
                                             </div>
                                         </div>
                                     ) : (
                                         <div className="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-sm border border-yellow-100">
-                                            Your degree is currently being reviewed by our team. You will be notified once verified.
+                                            {t('profile.degree_reviewing')}
                                         </div>
                                     )}
                                 </div>
@@ -351,7 +351,7 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                             {initialData?.isVerified && (
                                 <div className="flex items-center gap-2 text-green-600 font-medium bg-green-50 p-3 rounded-lg border border-green-100">
                                     <ShieldCheck className="h-5 w-5" />
-                                    Your account is fully verified and visible to patients.
+                                    {t('profile.fully_verified')}
                                 </div>
                             )}
                         </CardContent>

@@ -8,18 +8,20 @@ import Link from 'next/link'
 import { deleteBlogPost } from '@/app/actions/blog'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { useLanguage } from '@/lib/LanguageContext'
 
 export function BlogListClient({ initialPosts }: { initialPosts: any[] }) {
     const router = useRouter()
+    const { t } = useLanguage()
     const [posts, setPosts] = React.useState(initialPosts)
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Are you sure you want to delete this article?")) return
+        if (!confirm(t('blog.delete_confirm'))) return
         try {
             await deleteBlogPost(id)
             setPosts(posts.filter(p => p.id !== id))
         } catch (err) {
-            alert("Delete failed")
+            alert(t('blog.delete_failed'))
         }
     }
 
@@ -27,12 +29,12 @@ export function BlogListClient({ initialPosts }: { initialPosts: any[] }) {
         <div className="space-y-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">My Articles</h1>
-                    <p className="text-gray-500">Manage your clinical insights and patient advice.</p>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('blog.my_articles_title')}</h1>
+                    <p className="text-gray-500">{t('blog.my_articles_desc')}</p>
                 </div>
                 <Button asChild className="gap-2">
                     <Link href="/dashboard/blog/new">
-                        <Plus className="h-4 w-4" /> Write New Article
+                        <Plus className="h-4 w-4" /> {t('blog.write_new')}
                     </Link>
                 </Button>
             </div>
@@ -64,11 +66,11 @@ export function BlogListClient({ initialPosts }: { initialPosts: any[] }) {
                             <div className="flex items-center gap-2 pt-2">
                                 <Button variant="outline" size="sm" className="flex-1 gap-2" asChild>
                                     <Link href={`/blog/${post.slug}`} target="_blank">
-                                        <Eye className="h-3.5 w-3.5" /> View
+                                        <Eye className="h-3.5 w-3.5" /> {t('blog.view')}
                                     </Link>
                                 </Button>
                                 <Button variant="outline" size="sm" className="flex-1 gap-2">
-                                    <Edit3 className="h-3.5 w-3.5" /> Edit
+                                    <Edit3 className="h-3.5 w-3.5" /> {t('blog.edit')}
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -84,12 +86,12 @@ export function BlogListClient({ initialPosts }: { initialPosts: any[] }) {
                 )) : (
                     <div className="col-span-full py-20 bg-white rounded-2xl border border-dashed border-gray-200 text-center">
                         <Newspaper className="h-12 w-12 text-gray-200 mx-auto mb-4" />
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">No articles yet</h3>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">{t('blog.no_articles')}</h3>
                         <p className="text-gray-500 mb-8 max-w-xs mx-auto">
-                            Share your expertise with patients and build trust by writing your first article.
+                            {t('blog.share_expertise')}
                         </p>
                         <Button asChild>
-                            <Link href="/dashboard/blog/new">Start Writing</Link>
+                            <Link href="/dashboard/blog/new">{t('blog.start_writing')}</Link>
                         </Button>
                     </div>
                 )}

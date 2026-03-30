@@ -10,9 +10,11 @@ import { Save, ArrowLeft, Image as ImageIcon, Globe, FileText } from 'lucide-rea
 import Link from 'next/link'
 import { createBlogPost } from '@/app/actions/blog'
 import { useRouter } from 'next/navigation'
+import { useLanguage } from '@/lib/LanguageContext'
 
 export default function NewArticlePage() {
     const router = useRouter()
+    const { t } = useLanguage()
     const [loading, setLoading] = React.useState(false)
     const [formData, setFormData] = React.useState({
         title_en: "",
@@ -33,7 +35,7 @@ export default function NewArticlePage() {
             await createBlogPost({ ...formData, slug })
             router.push("/dashboard/blog")
         } catch (err) {
-            alert("Failed to create article")
+            alert(t('blog.create_failed'))
         } finally {
             setLoading(false)
         }
@@ -47,12 +49,12 @@ export default function NewArticlePage() {
                         href="/dashboard/blog"
                         className="text-sm font-bold text-primary-600 flex items-center gap-1 hover:gap-2 transition-all"
                     >
-                        <ArrowLeft className="h-4 w-4" /> Back to My Articles
+                        <ArrowLeft className="h-4 w-4" /> {t('blog.back')}
                     </Link>
-                    <h1 className="text-2xl font-bold text-gray-900">Write New Article</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">{t('blog.write_title')}</h1>
                 </div>
                 <Button type="submit" disabled={loading} className="gap-2">
-                    {loading ? "Publishing..." : <><Save className="h-4 w-4" /> Publish Article</>}
+                    {loading ? t('blog.publishing') : <><Save className="h-4 w-4" /> {t('blog.publish')}</>}
                 </Button>
             </div>
 
@@ -62,18 +64,18 @@ export default function NewArticlePage() {
                     <Card className="border-none shadow-sm">
                         <CardHeader className="bg-gray-50/50">
                             <CardTitle className="text-lg font-bold flex items-center gap-2">
-                                <FileText className="h-5 w-5 text-primary-600" /> Titles
+                                <FileText className="h-5 w-5 text-primary-600" /> {t('blog.titles')}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 pt-6">
                             <div className="space-y-2">
                                 <Label htmlFor="title_en" className="flex items-center gap-2">
                                     <span className="text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded font-bold">EN</span>
-                                    English Title
+                                    {t('blog.en_title')}
                                 </Label>
                                 <Input
                                     id="title_en"
-                                    placeholder="e.g. The importance of daily flossing"
+                                    placeholder={t('blog.en_title_ph')}
                                     value={formData.title_en}
                                     onChange={(e) => setFormData({ ...formData, title_en: e.target.value })}
                                     required
@@ -82,11 +84,11 @@ export default function NewArticlePage() {
                             <div className="space-y-2">
                                 <Label htmlFor="title_el" className="flex items-center gap-2">
                                     <span className="text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded font-bold">EL</span>
-                                    Ελληνικός Τίτλος
+                                    {t('blog.el_title')}
                                 </Label>
                                 <Input
                                     id="title_el"
-                                    placeholder="π.χ. Η σημασία του καθημερινού νήματος"
+                                    placeholder={t('blog.el_title_ph')}
                                     value={formData.title_el}
                                     onChange={(e) => setFormData({ ...formData, title_el: e.target.value })}
                                     required
@@ -99,19 +101,19 @@ export default function NewArticlePage() {
                     <Card className="border-none shadow-sm">
                         <CardHeader className="bg-gray-50/50">
                             <CardTitle className="text-lg font-bold flex items-center gap-2">
-                                <Globe className="h-5 w-5 text-primary-600" /> Article Content
+                                <Globe className="h-5 w-5 text-primary-600" /> {t('blog.content_title')}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6 pt-6">
                             <div className="space-y-2">
                                 <Label htmlFor="content_en" className="flex items-center gap-2">
                                     <span className="text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded font-bold">EN</span>
-                                    English Content
+                                    {t('blog.en_content')}
                                 </Label>
                                 <Textarea
                                     id="content_en"
                                     rows={10}
-                                    placeholder="Write your article in English..."
+                                    placeholder={t('blog.en_content_ph')}
                                     value={formData.content_en}
                                     onChange={(e) => setFormData({ ...formData, content_en: e.target.value })}
                                     required
@@ -120,12 +122,12 @@ export default function NewArticlePage() {
                             <div className="space-y-2">
                                 <Label htmlFor="content_el" className="flex items-center gap-2">
                                     <span className="text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded font-bold">EL</span>
-                                    Ελληνικό Περιεχόμενο
+                                    {t('blog.el_content')}
                                 </Label>
                                 <Textarea
                                     id="content_el"
                                     rows={10}
-                                    placeholder="Γράψτε το άρθρο σας στα Ελληνικά..."
+                                    placeholder={t('blog.el_content_ph')}
                                     value={formData.content_el}
                                     onChange={(e) => setFormData({ ...formData, content_el: e.target.value })}
                                     required
@@ -139,32 +141,32 @@ export default function NewArticlePage() {
                     {/* Settings */}
                     <Card className="border-none shadow-sm">
                         <CardHeader className="bg-gray-50/50">
-                            <CardTitle className="text-sm font-bold uppercase tracking-widest text-gray-500">Settings</CardTitle>
+                            <CardTitle className="text-sm font-bold uppercase tracking-widest text-gray-500">{t('blog.settings')}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 pt-6">
                             <div className="space-y-2">
-                                <Label htmlFor="category">Category</Label>
+                                <Label htmlFor="category">{t('blog.category')}</Label>
                                 <select
                                     id="category"
                                     value={formData.category}
                                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                     className="w-full h-10 px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all"
                                 >
-                                    <option value="Advice">Tips & Advice</option>
-                                    <option value="Case Study">Clinical Case Study</option>
-                                    <option value="Technology">Technology</option>
-                                    <option value="News">Clinic News</option>
+                                    <option value="Advice">{t('blog.cat_tips')}</option>
+                                    <option value="Case Study">{t('blog.cat_case')}</option>
+                                    <option value="Technology">{t('blog.cat_tech')}</option>
+                                    <option value="News">{t('blog.cat_news')}</option>
                                 </select>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="slug">Custom Slug (Optional)</Label>
+                                <Label htmlFor="slug">{t('blog.slug')}</Label>
                                 <Input
                                     id="slug"
-                                    placeholder="the-importance-of-flossing"
+                                    placeholder={t('blog.slug_ph')}
                                     value={formData.slug}
                                     onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
                                 />
-                                <p className="text-[10px] text-gray-400 italic">Leaves empty to auto-generate from title.</p>
+                                <p className="text-[10px] text-gray-400 italic">{t('blog.slug_hint')}</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -172,11 +174,11 @@ export default function NewArticlePage() {
                     {/* Cover Image */}
                     <Card className="border-none shadow-sm">
                         <CardHeader className="bg-gray-50/50">
-                            <CardTitle className="text-sm font-bold uppercase tracking-widest text-gray-500">Cover Image</CardTitle>
+                            <CardTitle className="text-sm font-bold uppercase tracking-widest text-gray-500">{t('blog.cover_image')}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 pt-6">
                             <div className="space-y-2">
-                                <Label htmlFor="image">Image URL</Label>
+                                <Label htmlFor="image">{t('blog.image_url')}</Label>
                                 <div className="space-y-3">
                                     <div className="relative aspect-video bg-gray-50 border border-dashed border-gray-200 rounded-xl flex items-center justify-center overflow-hidden">
                                         {formData.image ? (
@@ -187,7 +189,7 @@ export default function NewArticlePage() {
                                     </div>
                                     <Input
                                         id="image"
-                                        placeholder="Paste image URL..."
+                                        placeholder={t('blog.image_ph')}
                                         value={formData.image}
                                         onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                                     />

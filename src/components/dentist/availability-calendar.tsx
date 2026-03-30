@@ -8,7 +8,6 @@ import { useLanguage } from "@/lib/LanguageContext"
 import { format, addDays, startOfToday, isSameDay } from "date-fns"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { createBooking } from "@/app/actions/booking"
 
 interface AvailabilityCalendarProps {
     dentist: any
@@ -23,7 +22,6 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
     const [startDate, setStartDate] = React.useState(startOfToday())
     const [selectedDate, setSelectedDate] = React.useState(startOfToday())
     const [selectedSlot, setSelectedSlot] = React.useState<string | null>(null)
-    const [isBooking, setIsBooking] = React.useState(false)
 
     // Generate 7 days from startDate
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startDate, i))
@@ -95,25 +93,10 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
 
         if (!selectedSlot) return
 
-        setIsBooking(true)
-        try {
-            const [hours, minutes] = selectedSlot.split(":").map(Number)
-            const bookingDate = new Date(selectedDate)
-            bookingDate.setHours(hours, minutes, 0, 0)
-
-            await createBooking({
-                dentistProfileId: dentist.id,
-                serviceName: dentist.services[0]?.name || "General Consultation",
-                date: bookingDate
-            })
-
-            router.push("/booking/success")
-        } catch (error) {
-            console.error(error)
-            alert("Failed to create booking. Please try again.")
-        } finally {
-            setIsBooking(false)
-        }
+        // Redirect to the booking page with the selected time and date
+        const dateStr = format(selectedDate, "yyyy-MM-dd")
+        const serviceName = dentist.services?.[0]?.name || "General Consultation"
+        router.push(`/booking?dentistId=${dentist.id}&date=${dateStr}&time=${selectedSlot}&service=${encodeURIComponent(serviceName)}`)
     }
 
     const nextWeek = () => setStartDate(prev => addDays(prev, 7))
@@ -127,7 +110,7 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h2 className="text-xl font-bold text-gray-900">{t('pages.profile.book_appointment')}</h2>
-                    <p className="text-xs text-gray-500 mt-1">{format(startDate, "MMMM yyyy")}</p>
+                    <p className="text-xs text-gray-500 mt-1">{t(`months.${format(startDate, 'MMMM').toLowerCase() === 'may' ? 'may_full' : format(startDate, 'MMMM').toLowerCase()}`)} {format(startDate, 'yyyy')}</p>
                 </div>
                 <div className="flex gap-2">
                     <Button
@@ -166,7 +149,7 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
                                 : "text-gray-500 hover:bg-gray-50"
                         )}
                     >
-                        <span className="text-[10px] font-bold uppercase opacity-80">{format(date, "EEE")}</span>
+                        <span className="text-[10px] font-bold uppercase opacity-80">{t(`days.${format(date, 'EEE').toLowerCase()}`)}</span>
                         <span className="text-sm font-black">{format(date, "d")}</span>
                     </button>
                 ))}
@@ -176,7 +159,7 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
             <div className="mb-6">
                 <div className="flex items-center gap-2 mb-4 text-sm font-bold text-gray-700">
                     <CalendarIcon className="h-4 w-4 text-primary-500" />
-                    <span>{format(selectedDate, "EEEE, MMMM d")}</span>
+                    <span>{t(`days.${format(selectedDate, 'eeee').toLowerCase()}`)}, {t(`months.${format(selectedDate, 'MMMM').toLowerCase() === 'may' ? 'may_full' : format(selectedDate, 'MMMM').toLowerCase()}`)} {format(selectedDate, 'd')}</span>
                 </div>
 
                 {slots.length > 0 ? (
@@ -202,7 +185,7 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
                 ) : (
                     <div className="py-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                         <Clock className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                        <p className="text-sm font-medium text-gray-500">No availability for this day</p>
+                        <p className="text-sm font-medium text-gray-500">{t('pages.profile.no_availability')}</p>
                     </div>
                 )}
             </div>
@@ -210,14 +193,14 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
             <Button
                 className="w-full h-12 rounded-xl text-sm font-bold shadow-lg shadow-primary-100"
                 size="lg"
-                disabled={!selectedSlot || isBooking || !dentist.isStripeEnabled}
+                disabled={!selectedSlot || !dentist.isStripeEnabled}
                 onClick={handleBook}
             >
-                {isBooking ? "Booking..." : !dentist.isStripeEnabled ? "Booking Unavailable" : selectedSlot ? `Book for ${selectedSlot}` : "Select a time"}
+                {!dentist.isStripeEnabled ? t('pages.profile.booking_unavailable') : selectedSlot ? `${t('pages.profile.book_for')} ${selectedSlot}` : t('pages.profile.select_time')}
             </Button>
 
             <p className="text-center text-[10px] text-gray-400 mt-4 leading-relaxed uppercase tracking-tighter">
-                Secure payment via Stripe • Instant confirmation
+                {t('pages.profile.secure_payment')}
             </p>
         </div>
     )

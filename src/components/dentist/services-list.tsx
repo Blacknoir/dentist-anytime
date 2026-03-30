@@ -64,7 +64,7 @@ export function ServicesList({ services, consultationFee }: ServicesListProps) {
                                                 <p className="font-medium text-gray-900">{item.name}</p>
                                                 {item.isConsultation && (
                                                     <span className="text-[10px] bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                                                        Required
+                                                        {t('pages.profile.required')}
                                                     </span>
                                                 )}
                                                 <Info className="h-4 w-4 text-gray-400 cursor-help opacity-0 group-hover:opacity-100 transition-opacity" />
