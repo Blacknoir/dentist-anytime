@@ -122,7 +122,7 @@ export async function getStripeAccountStatus() {
 
 export async function createPaymentIntent(amount: number, dentistProfileId: string) {
     const session = await auth()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    if (!session?.user?.id) return { error: "Unauthorized. You must be logged in to book." }
 
     const dentist = await prisma.dentistProfile.findUnique({
         where: { id: dentistProfileId },
@@ -130,7 +130,7 @@ export async function createPaymentIntent(amount: number, dentistProfileId: stri
     })
 
     if (!dentist?.stripeAccountId) {
-        throw new Error("Dentist is not connected to Stripe")
+        return { error: "Dentist has not configured their payment processor yet." }
     }
 
     // Calculate application fee (commission)
@@ -155,7 +155,7 @@ export async function createPaymentIntent(amount: number, dentistProfileId: stri
         });
     } catch (error: any) {
         console.error("Stripe payment intent creation error:", error);
-        throw new Error(`Stripe error: ${error.message}`);
+        return { error: `Stripe error: ${error.message}` };
     }
 
     return {

@@ -22,8 +22,12 @@ export function StripePayment({ amount, dentistProfileId, onSuccess }: StripePay
     useEffect(() => {
         // Create PaymentIntent as soon as the component mounts
         createPaymentIntent(amount, dentistProfileId)
-            .then((res) => {
-                setClientSecret(res.clientSecret!)
+            .then((res: any) => {
+                if (res.error) {
+                    setError(res.error)
+                } else if (res.clientSecret) {
+                    setClientSecret(res.clientSecret)
+                }
             })
             .catch((err) => {
                 console.error("Failed to create payment intent:", err)
