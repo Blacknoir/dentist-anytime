@@ -43,33 +43,47 @@ export async function createStripeConnectAccount() {
         }
     }
 
-    if (!accountId) {
-        const account = await stripe.accounts.create({
-            type: "express",
-            country: "GR", // Defaulting to Greece based on "euro" and context
-            email: session.user.email || undefined,
-            capabilities: {
-                card_payments: { requested: true },
-                transfers: { requested: true },
-            },
+    let accountLinkUrl = "";
+
+    try {
+        if (!accountId) {
+            const account = await stripe.accounts.create({
+                type: "express",
+                country: "GR", // Defaulting to Greece based on "euro" and context
+                email: session.user.email || undefined,
+                capabilities: {
+                    card_payments: { requested: true },
+                    transfers: { requested: true },
+                },
+            })
+
+            accountId = account.id
+
+            await prisma.dentistProfile.update({
+                where: { id: dentist.id },
+                data: { stripeAccountId: accountId },
+            })
+        }
+
+        const accountLink = await stripe.accountLinks.create({
+            account: accountId,
+            refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`, // If they cancel or it fails, go back to dashboard
+            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/stripe/return`, // Success page
+            type: "account_onboarding",
         })
 
-        accountId = account.id
-
-        await prisma.dentistProfile.update({
-            where: { id: dentist.id },
-            data: { stripeAccountId: accountId },
-        })
+        accountLinkUrl = accountLink.url;
+    } catch (e: any) {
+        console.error("Failed to create Stripe Connect account or link:", e);
+        // Pass the explicit error message back to the frontend instead of throwing a hard backend exception
+        // that triggers Next.js's static server rendering boundaries wrapper.
+        let errMsg = e.message || "Unknown error";
+        return redirect(`/dashboard?stripe_error=${encodeURIComponent(errMsg)}`)
     }
 
-    const accountLink = await stripe.accountLinks.create({
-        account: accountId,
-        refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`, // If they cancel or it fails, go back to dashboard
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/stripe/return`, // Success page
-        type: "account_onboarding",
-    })
-
-    redirect(accountLink.url)
+    // Safely redirect to Stripe outside the try-catch block 
+    // because redirect() intrinsically throws an error itself to function!
+    redirect(accountLinkUrl)
 }
 
 export async function getStripeAccountStatus() {

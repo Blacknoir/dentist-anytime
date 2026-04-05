@@ -21,9 +21,12 @@ import Link from "next/link"
 import { useLanguage } from "@/lib/LanguageContext"
 import { AnalyticsDashboard } from "@/components/dashboard/analytics-dashboard"
 import { BookingPrepaymentStatus } from "@/components/dashboard/booking-prepayment-status"
+import { useSearchParams } from "next/navigation"
 
 export function DashboardClient({ stats, signInWithGoogleAction, createStripeConnectAccountAction }: { stats: any, signInWithGoogleAction: any, createStripeConnectAccountAction: any }) {
     const { t } = useLanguage()
+    const searchParams = useSearchParams()
+    const stripeError = searchParams.get("stripe_error")
 
     if (!stats) {
         return (
@@ -140,6 +143,16 @@ export function DashboardClient({ stats, signInWithGoogleAction, createStripeCon
                 </div>
 
                 {/* Stripe Connect Prompt */}
+                {stripeError && (
+                    <div className="p-4 mb-4 rounded-xl border bg-red-50 border-red-200 text-red-800 flex items-start gap-4">
+                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                        <div>
+                            <h3 className="font-bold">Stripe Connection Error</h3>
+                            <p className="text-sm mt-1">{decodeURIComponent(stripeError)}</p>
+                        </div>
+                    </div>
+                )}
+                
                 {isVerified && !(stats as any).isStripeConnected && (
                     <div className="p-4 md:p-6 rounded-2xl border bg-indigo-50 border-indigo-100 text-indigo-800 flex flex-col sm:flex-row items-start gap-4 shadow-sm shadow-indigo-100">
                         <div className="p-3 rounded-xl bg-indigo-100/50">
