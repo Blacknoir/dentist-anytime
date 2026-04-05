@@ -27,7 +27,7 @@ export function StripePayment({ amount, dentistProfileId, onSuccess }: StripePay
             })
             .catch((err) => {
                 console.error("Failed to create payment intent:", err)
-                setError("Could not initialize payment. Please try again.")
+                setError(err.message || "Could not initialize payment. Please try again.")
             })
     }, [amount, dentistProfileId])
 

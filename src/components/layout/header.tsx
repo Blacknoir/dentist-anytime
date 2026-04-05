@@ -275,7 +275,7 @@ export function Header() {
                             </>
                         ) : (
                             <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}>
-                                <Button variant="outline" className="w-full justify-center">
+                                <Button variant="outline" className="w-full justify-center text-gray-800">
                                     {t('nav.sign_in')}
                                 </Button>
                             </Link>

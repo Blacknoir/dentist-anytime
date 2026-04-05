@@ -25,10 +25,28 @@ export async function createStripeConnectAccount() {
 
     let accountId = dentist.stripeAccountId
 
+    if (accountId) {
+        try {
+            // Verify the account actually exists on this Stripe environment (e.g. handle test vs live key swaps)
+            await stripe.accounts.retrieve(accountId)
+        } catch (error: any) {
+            if (error.code === 'resource_missing' || error.message?.includes('No such account') || error.message?.includes('No such destination')) {
+                console.warn(`Stripe account ${accountId} not found in this environment. Resetting.`)
+                accountId = null
+                await prisma.dentistProfile.update({
+                    where: { id: dentist.id },
+                    data: { stripeAccountId: null, isStripeEnabled: false },
+                })
+            } else {
+                throw error
+            }
+        }
+    }
+
     if (!accountId) {
         const account = await stripe.accounts.create({
             type: "express",
-            country: "GR", // Defaulting to Greece based on "euro" and context, probably should be dynamic or fixed to platform region
+            country: "GR", // Defaulting to Greece based on "euro" and context
             email: session.user.email || undefined,
             capabilities: {
                 card_payments: { requested: true },
@@ -81,8 +99,15 @@ export async function getStripeAccountStatus() {
             detailsSubmitted: account.details_submitted,
             chargesEnabled: account.charges_enabled
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error retrieving Stripe account:", error)
+        if (error.code === 'resource_missing' || error.message?.includes('No such account')) {
+            console.warn(`Stripe account ${dentist.stripeAccountId} missing in getStripeAccountStatus. Resetting database.`)
+            await prisma.dentistProfile.update({
+                where: { id: dentist.id },
+                data: { stripeAccountId: null, isStripeEnabled: false },
+            })
+        }
         return { isConnected: false }
     }
 }
@@ -105,19 +130,25 @@ export async function createPaymentIntent(amount: number, dentistProfileId: stri
     const commissionRate = dentist.commissionRate || 10 // default to 10% if 0 or null
     const applicationFee = Math.round(amount * (commissionRate / 100))
 
-    const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount,
-        currency: "eur",
-        automatic_payment_methods: { enabled: true },
-        application_fee_amount: applicationFee,
-        transfer_data: {
-            destination: dentist.stripeAccountId,
-        },
-        metadata: {
-            dentistProfileId,
-            patientId: session.user.id
-        }
-    })
+    let paymentIntent;
+    try {
+        paymentIntent = await stripe.paymentIntents.create({
+            amount: amount,
+            currency: "eur",
+            automatic_payment_methods: { enabled: true },
+            application_fee_amount: applicationFee,
+            transfer_data: {
+                destination: dentist.stripeAccountId,
+            },
+            metadata: {
+                dentistProfileId,
+                patientId: session.user.id
+            }
+        });
+    } catch (error: any) {
+        console.error("Stripe payment intent creation error:", error);
+        throw new Error(`Stripe error: ${error.message}`);
+    }
 
     return {
         clientSecret: paymentIntent.client_secret,
