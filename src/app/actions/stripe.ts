@@ -86,14 +86,9 @@ export async function getStripeAccountStatus() {
         const account = await stripe.accounts.retrieve(dentist.stripeAccountId)
         const isConnected = !!(account.details_submitted && account.charges_enabled)
 
-        // Keep isStripeEnabled in sync with actual Stripe account status
-        if (isConnected && !(dentist as any).isStripeEnabled) {
-            await prisma.dentistProfile.update({
-                where: { id: dentist.id },
-                data: { isStripeEnabled: true },
-            })
-        }
-
+        // Return status accurately based on Stripe's live response
+        // Note: We don't perform the database update here anymore, as doing mutations 
+        // during Server Component rendering causes Next.js errors in production.
         return {
             isConnected,
             detailsSubmitted: account.details_submitted,
@@ -102,11 +97,10 @@ export async function getStripeAccountStatus() {
     } catch (error: any) {
         console.error("Error retrieving Stripe account:", error)
         if (error.code === 'resource_missing' || error.message?.includes('No such account')) {
-            console.warn(`Stripe account ${dentist.stripeAccountId} missing in getStripeAccountStatus. Resetting database.`)
-            await prisma.dentistProfile.update({
-                where: { id: dentist.id },
-                data: { stripeAccountId: null, isStripeEnabled: false },
-            })
+            console.warn(`Stripe account ${dentist.stripeAccountId} missing in getStripeAccountStatus. UI will reset.`)
+            // Return disconnected state. The actual database wipe will safely happen 
+            // inside createStripeConnectAccount when they click exactly button.
+            return { isConnected: false }
         }
         return { isConnected: false }
     }
