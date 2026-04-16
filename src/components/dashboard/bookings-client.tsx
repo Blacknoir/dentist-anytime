@@ -82,7 +82,7 @@ export function BookingsClient({ bookings }: { bookings: any }) {
                                                     <div>
                                                         <p className="font-bold text-gray-900">{booking.patient.name}</p>
                                                         <p className="text-xs text-gray-500">{booking.patient.email}</p>
-                                                        <BookingPrepaymentStatus isPrepaid={!!booking.stripePaymentId} />
+                                                        <BookingPrepaymentStatus isPrepaid={!!booking.stripePaymentId} amount={booking.price} />
                                                     </div>
                                                 </div>
                                             </td>

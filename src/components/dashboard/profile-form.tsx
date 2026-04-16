@@ -200,9 +200,11 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                                     <Input
                                         id="price"
                                         type="number"
+                                        min={20}
                                         value={formData.priceFrom}
-                                        onChange={(e) => setFormData({ ...formData, priceFrom: parseInt(e.target.value) })}
+                                        onChange={(e) => setFormData({ ...formData, priceFrom: Math.max(20, parseInt(e.target.value) || 0) })}
                                     />
+                                    <p className="text-xs text-gray-400">{t('profile.min_price_hint')}</p>
                                 </div>
                             </div>
                         </CardContent>

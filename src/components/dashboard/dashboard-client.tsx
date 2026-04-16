@@ -11,7 +11,8 @@ import {
     Stethoscope,
     ShieldAlert,
     AlertCircle,
-    CreditCard
+    CreditCard,
+    XCircle
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,7 @@ import Link from "next/link"
 import { useLanguage } from "@/lib/LanguageContext"
 import { AnalyticsDashboard } from "@/components/dashboard/analytics-dashboard"
 import { BookingPrepaymentStatus } from "@/components/dashboard/booking-prepayment-status"
+import { CancelBookingButton } from "@/components/dashboard/cancel-booking-button"
 import { useSearchParams } from "next/navigation"
 
 export function DashboardClient({ stats, signInWithGoogleAction, createStripeConnectAccountAction }: { stats: any, signInWithGoogleAction: any, createStripeConnectAccountAction: any }) {
@@ -232,7 +234,7 @@ export function DashboardClient({ stats, signInWithGoogleAction, createStripeCon
                                                 <div>
                                                     <p className="font-bold text-gray-900 line-clamp-1">{booking.patient.name}</p>
                                                     <p className="text-sm text-gray-500 line-clamp-1">{booking.serviceName}</p>
-                                                    <BookingPrepaymentStatus isPrepaid={!!booking.stripePaymentId} />
+                                                    <BookingPrepaymentStatus isPrepaid={!!booking.stripePaymentId} amount={booking.price} />
                                                 </div>
                                             </div>
                                             <div className="sm:text-right w-full sm:w-auto pl-14 sm:pl-0">
@@ -364,8 +366,18 @@ export function DashboardClient({ stats, signInWithGoogleAction, createStripeCon
                                         </div>
                                         {booking.stripePaymentId && (
                                             <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100 w-fit ml-auto">
-                                                €50 {t('dashboard.prepaid')}
+                                                €{booking.price} {t('dashboard.prepaid')}
                                             </div>
+                                        )}
+                                        {booking.status === 'CANCELLED' ? (
+                                            <div className="mt-2 text-right">
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-100">
+                                                    <XCircle className="h-3.5 w-3.5" />
+                                                    {t('booking.status_cancelled')}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <CancelBookingButton bookingId={booking.id} bookingDateStr={booking.date} />
                                         )}
                                     </div>
                                 </div>

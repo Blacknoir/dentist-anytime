@@ -175,8 +175,11 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                                 dentistProfileId={dentistId}
                                 onSuccess={handlePaymentSuccess}
                             />
-                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mt-8">
-                                <p className="text-xs text-gray-500 text-center">
+                            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mt-8 space-y-2">
+                                <p className="text-xs text-gray-500 text-center font-medium">
+                                    {t('booking.cancel_policy')}
+                                </p>
+                                <p className="text-xs text-gray-400 text-center">
                                     Your payment information is encrypted and processed securely. We never store your card details.
                                 </p>
                             </div>

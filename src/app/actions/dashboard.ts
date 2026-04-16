@@ -207,7 +207,8 @@ export async function updateDentistProfile(data: any) {
         }
     })
 
-    // 2. Update Dentist Profile
+    // 2. Update Dentist Profile (enforce minimum price of 20€)
+    const priceFrom = Math.max(20, data.priceFrom || 20)
     const result = await (prisma.dentistProfile as any).update({
         where: { userId: session.user.id },
         data: {
@@ -221,7 +222,7 @@ export async function updateDentistProfile(data: any) {
             about: data.about,
             education: data.education,
             experienceYears: data.experienceYears,
-            priceFrom: data.priceFrom,
+            priceFrom: priceFrom,
             image: data.image
         }
     })
