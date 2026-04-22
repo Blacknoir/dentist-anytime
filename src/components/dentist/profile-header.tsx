@@ -1,8 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { Star, MapPin, ShieldCheck, Share2, Heart, Clock, Award, Users } from "lucide-react"
+import { Star, MapPin, ShieldCheck, Share2, Heart, Clock, Award, Users, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/LanguageContext"
 
@@ -12,6 +13,40 @@ interface ProfileHeaderProps {
 
 export function ProfileHeader({ dentist }: ProfileHeaderProps) {
     const { t } = useLanguage()
+    const [isLiked, setIsLiked] = useState(false)
+    const [showCopied, setShowCopied] = useState(false)
+
+    const handleShare = async () => {
+        const shareData = {
+            title: `${dentist.user.name} - Dentist Anytime`,
+            text: `${t('pages.profile.book_appointment')} - ${dentist.user.name}`,
+            url: window.location.href,
+        }
+
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData)
+            } else {
+                // Fallback: copy URL to clipboard
+                await navigator.clipboard.writeText(window.location.href)
+                setShowCopied(true)
+                setTimeout(() => setShowCopied(false), 2000)
+            }
+        } catch (err) {
+            // User cancelled or error - try clipboard fallback
+            try {
+                await navigator.clipboard.writeText(window.location.href)
+                setShowCopied(true)
+                setTimeout(() => setShowCopied(false), 2000)
+            } catch {
+                // Silent fail
+            }
+        }
+    }
+
+    const handleLike = () => {
+        setIsLiked(!isLiked)
+    }
 
     return (
         <div className="bg-white border-b border-gray-200">
@@ -85,12 +120,33 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
                                     <span className="text-[10px] uppercase tracking-wider font-bold text-primary-600">{t('pages.profile.consultation_fee')}</span>
                                     <span className="text-2xl font-black text-primary-700">€{dentist.priceFrom}</span>
                                 </div>
-                                <div className="flex gap-2 w-full sm:w-auto">
-                                    <Button variant="outline" size="icon" className="rounded-full">
-                                        <Share2 className="h-4 w-4" />
+                                <div className="flex gap-2 w-full sm:w-auto relative">
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className="rounded-full"
+                                        onClick={handleShare}
+                                        title={t('pages.profile.share') || 'Share profile'}
+                                    >
+                                        {showCopied ? (
+                                            <Check className="h-4 w-4 text-green-500" />
+                                        ) : (
+                                            <Share2 className="h-4 w-4" />
+                                        )}
                                     </Button>
-                                    <Button variant="outline" size="icon" className="rounded-full">
-                                        <Heart className="h-4 w-4" />
+                                    {showCopied && (
+                                        <span className="absolute -bottom-8 left-0 text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-lg border border-green-100 whitespace-nowrap shadow-sm">
+                                            {t('pages.profile.link_copied') || 'Link copied!'}
+                                        </span>
+                                    )}
+                                    <Button 
+                                        variant="outline" 
+                                        size="icon" 
+                                        className={`rounded-full transition-all ${isLiked ? 'border-red-200 bg-red-50 hover:bg-red-100' : ''}`}
+                                        onClick={handleLike}
+                                        title={t('pages.profile.like') || 'Like profile'}
+                                    >
+                                        <Heart className={`h-4 w-4 transition-all ${isLiked ? 'fill-red-500 text-red-500 scale-110' : ''}`} />
                                     </Button>
                                 </div>
                                 {dentist.isStripeEnabled ? (

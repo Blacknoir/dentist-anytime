@@ -141,22 +141,38 @@ export default function AdminDashboard() {
                                     {dentist.degreeImage && isValidUrl(dentist.degreeImage) ? (
                                         <div className="space-y-2">
                                             <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Degree Document</span>
-                                            <div className="relative h-40 w-full rounded-lg border border-gray-200 overflow-hidden group">
-                                                <Image
-                                                    src={dentist.degreeImage}
-                                                    alt="Degree"
-                                                    fill
-                                                    className="object-cover"
-                                                />
-                                                <a
-                                                    href={dentist.degreeImage}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
-                                                >
-                                                    <ExternalLink className="h-6 w-6" />
-                                                </a>
-                                            </div>
+                                            {dentist.degreeImage.startsWith("data:application/pdf") || dentist.degreeImage.endsWith(".pdf") ? (
+                                                <div className="relative h-40 w-full rounded-lg border border-gray-200 overflow-hidden bg-gray-50 flex items-center justify-center group flex-col gap-2">
+                                                    <div className="text-gray-400">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                                    </div>
+                                                    <span className="text-sm text-gray-500 font-medium">PDF Document</span>
+                                                    <a
+                                                        href={dentist.degreeImage}
+                                                        download="degree.pdf"
+                                                        className="absolute inset-0 bg-black/5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    >
+                                                        <Button size="sm" variant="outline" className="bg-white pointer-events-none">Download PDF</Button>
+                                                    </a>
+                                                </div>
+                                            ) : (
+                                                <div className="relative h-40 w-full rounded-lg border border-gray-200 overflow-hidden group">
+                                                    <Image
+                                                        src={dentist.degreeImage}
+                                                        alt="Degree"
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                    <a
+                                                        href={dentist.degreeImage}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                                                    >
+                                                        <ExternalLink className="h-6 w-6" />
+                                                    </a>
+                                                </div>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-500 border border-dashed border-gray-200 text-center">

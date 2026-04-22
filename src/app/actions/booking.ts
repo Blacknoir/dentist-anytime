@@ -55,6 +55,8 @@ export async function createBooking(formData: {
     console.log(`[EMAIL MOCK] To: ${patientEmail}, Subject: Booking Confirmed, Content: Your booking with ${dentist?.user?.name || "Dentist"} for ${formData.serviceName} on ${bookingDateStr} is confirmed.`)
 
     revalidatePath("/booking/success")
+    revalidatePath("/dashboard")
+    revalidatePath("/dashboard/bookings")
     return booking
 }
 

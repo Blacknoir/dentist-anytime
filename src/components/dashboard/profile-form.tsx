@@ -62,6 +62,19 @@ export function ProfileForm({ initialData }: { initialData: any }) {
         }
     }
 
+    const handleDegreeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (file) {
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setDegreeUrl(reader.result as string)
+            }
+            reader.readAsDataURL(file)
+        } else {
+            setDegreeUrl("")
+        }
+    }
+
     const handleLocationSelect = async (place: { place_id: string; description: string }) => {
         try {
             const response = await fetch(`/api/places/details?placeId=${place.place_id}`)
@@ -328,10 +341,10 @@ export function ProfileForm({ initialData }: { initialData: any }) {
                                             <div className="flex flex-col sm:flex-row gap-2">
                                                 <Input
                                                     id="degree"
-                                                    padding-right="2"
-                                                    placeholder={t('profile.degree_placeholder')}
-                                                    value={degreeUrl}
-                                                    onChange={(e) => setDegreeUrl(e.target.value)}
+                                                    type="file"
+                                                    accept="image/*,application/pdf"
+                                                    onChange={handleDegreeFileChange}
+                                                    className="cursor-pointer"
                                                 />
                                                 <Button
                                                     type="button"

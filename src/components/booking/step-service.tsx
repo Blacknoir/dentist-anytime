@@ -8,20 +8,21 @@ interface StepServiceProps {
     selectedService: string | null
     onSelect: (service: string) => void
     services?: any[]
+    consultationFee?: number
 }
 
-export function StepService({ selectedService, onSelect, services: initialServices }: StepServiceProps) {
+export function StepService({ selectedService, onSelect, services: initialServices, consultationFee = 20 }: StepServiceProps) {
     const { t } = useLanguage()
 
     const services = initialServices && initialServices.length > 0
         ? initialServices.map(s => ({
             id: s.id,
             name: s.name,
-            price: `€${s.price || 0}`,
+            price: `€${s.price || consultationFee}`,
             duration: `${s.duration || 30} ${t('time.min')}`
         }))
         : [
-            { id: "consultation", name: "Initial Consultation", price: "Free", duration: `30 ${t('time.min')}` },
+            { id: "consultation", name: t('pages.profile.consultation_fee') || "Initial Consultation", price: `€${consultationFee}`, duration: `30 ${t('time.min')}` },
         ]
 
     return (

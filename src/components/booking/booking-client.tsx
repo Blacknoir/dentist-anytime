@@ -70,10 +70,12 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                 date: bookingDate,
                 ...({ stripePaymentId: id } as any)
             })
-            router.push("/booking/success")
         } catch (error) {
-            console.error("Booking failed:", error)
-            setIsSubmitting(false)
+            console.error("Booking record creation failed (payment was successful):", error)
+            // Payment already went through, so we still redirect to success
+        } finally {
+            // Always redirect to success - the payment was already captured
+            router.push("/booking/success")
         }
     }
 
@@ -112,6 +114,7 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                             selectedService={bookingData.service}
                             onSelect={(service) => setBookingData({ ...bookingData, service })}
                             services={dentist.services}
+                            consultationFee={consultationFee}
                         />
                     )}
                     {currentStep === 2 && (

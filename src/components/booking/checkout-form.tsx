@@ -28,17 +28,43 @@ export function CheckoutForm({ amount, onSuccess }: CheckoutFormProps) {
         }
 
         setLoading(true)
+        setErrorMessage(null)
 
-        const { error, paymentIntent } = await stripe.confirmPayment({
-            elements,
-            redirect: "if_required",
-        })
+        try {
+            const { error, paymentIntent } = await stripe.confirmPayment({
+                elements,
+                confirmParams: {
+                    return_url: `${window.location.origin}/booking/success`,
+                },
+                redirect: "if_required",
+            })
 
-        if (error) {
-            setErrorMessage(error.message ?? "An unknown error occurred")
+            if (error) {
+                setErrorMessage(error.message ?? "An unknown error occurred")
+                setLoading(false)
+            } else if (paymentIntent) {
+                if (paymentIntent.status === "succeeded") {
+                    onSuccess(paymentIntent.id)
+                } else if (paymentIntent.status === "processing") {
+                    // For methods like Bancontact, Klarna, EPS that may take time
+                    onSuccess(paymentIntent.id)
+                } else if (paymentIntent.status === "requires_action") {
+                    // Stripe will handle the redirect automatically
+                    // If we reach here without redirect, show message
+                    setErrorMessage("Additional authentication required. Please follow the instructions.")
+                    setLoading(false)
+                } else {
+                    setErrorMessage(`Payment status: ${paymentIntent.status}. Please try again.`)
+                    setLoading(false)
+                }
+            } else {
+                setErrorMessage("No response from payment processor. Please try again.")
+                setLoading(false)
+            }
+        } catch (err: any) {
+            console.error("Payment processing error:", err)
+            setErrorMessage(err.message || "An unexpected error occurred during payment.")
             setLoading(false)
-        } else if (paymentIntent && paymentIntent.status === "succeeded") {
-            onSuccess(paymentIntent.id)
         }
     }
 

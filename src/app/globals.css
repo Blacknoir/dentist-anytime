@@ -82,11 +82,9 @@
   --foreground: #171717;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Force light mode - the app is designed for light backgrounds only */
+html {
+  color-scheme: light;
 }
 
 body {
@@ -97,4 +95,13 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-sans);
+}
+
+/* Ensure input and form text is always dark/readable */
+input, textarea, select, label {
+  color: #111827;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #9CA3AF;
 }
