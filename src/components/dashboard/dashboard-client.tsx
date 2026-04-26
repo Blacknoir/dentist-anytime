@@ -339,12 +339,20 @@ export function DashboardClient({ stats, signInWithGoogleAction, createStripeCon
             </Card>
 
             <Card className="border-none shadow-sm">
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <CardTitle className="text-lg font-bold">{t('dashboard.upcoming_appointments')}</CardTitle>
                     <Button variant="outline" size="sm" asChild>
                         <Link href="/search">{t('dashboard.find_new_dentist')}</Link>
                     </Button>
                 </CardHeader>
+                <div className="px-6 pb-4">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-start gap-3">
+                        <AlertCircle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                        <p className="text-sm text-blue-800">
+                            <strong>Σημείωση για επιστροφή χρημάτων:</strong> Για επιστροφή χρημάτων, επικοινωνήστε με την υποστήριξη τουλάχιστον 3 ημέρες πριν από το ραντεβού για ακύρωση.
+                        </p>
+                    </div>
+                </div>
                 <CardContent>
                     <div className="space-y-6">
                         {(stats as any).upcomingBookings.length > 0 ? (

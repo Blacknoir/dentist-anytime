@@ -43,6 +43,15 @@ export default function BookingSuccessPage() {
                                 <p className="font-semibold text-gray-900">10:00 AM</p>
                             </div>
                         </div>
+
+                        <div className="pt-2 mt-2 border-t border-gray-200">
+                            <p className="text-[10px] text-gray-400 leading-tight uppercase font-bold">
+                                Πολιτική Επιστροφής Χρημάτων
+                            </p>
+                            <p className="text-[11px] text-gray-500 mt-1">
+                                Για επιστροφή χρημάτων, επικοινωνήστε με την υποστήριξη τουλάχιστον 3 ημέρες πριν από το ραντεβού για ακύρωση.
+                            </p>
+                        </div>
                     </div>
 
                     <div className="flex flex-col gap-3">

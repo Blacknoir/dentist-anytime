@@ -65,12 +65,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         },
     },
     callbacks: {
-        async jwt({ token, user, trigger, session }) {
+        async jwt({ token, user }) {
             if (user) {
-                token.role = (user as any).role
-                token.id = user.id
+                // Fetch the latest user data from DB to ensure role is correct (especially after first registration)
+                const dbUser = await prisma.user.findUnique({
+                    where: { id: user.id },
+                    select: { id: true, role: true }
+                })
+                
+                if (dbUser) {
+                    token.role = dbUser.role
+                    token.id = dbUser.id
+                } else {
+                    token.role = (user as any).role
+                    token.id = user.id
+                }
             }
-            // Optimization: Keep the token extremely small
             return {
                 id: token.id,
                 role: token.role

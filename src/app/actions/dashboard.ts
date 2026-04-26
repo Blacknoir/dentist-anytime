@@ -30,7 +30,9 @@ export async function getDashboardStats() {
 
         if (!dentist) return null
 
-        const upcomingBookings = dentist.bookings.filter(b => b.date >= new Date())
+        const now = new Date()
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        const upcomingBookings = dentist.bookings.filter(b => b.date >= startOfToday)
         const totalPatients = new Set(dentist.bookings.map(b => b.patientId)).size
         const totalRevenue = dentist.bookings
             .filter(b => b.status === "CONFIRMED" || b.paymentStatus === "COMPLETED")
@@ -73,11 +75,15 @@ export async function getDashboardStats() {
             }
         })
 
+        // Robust Date Filtering: Use start of today to ensure today's bookings show up in upcoming
+        const now = new Date()
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
         return {
             role: "PATIENT",
             totalBookings: bookings.length,
-            upcomingBookings: bookings.filter(b => new Date(b.date) >= new Date()),
-            completedBookings: bookings.filter(b => new Date(b.date) < new Date()),
+            upcomingBookings: bookings.filter(b => new Date(b.date) >= startOfToday),
+            completedBookings: bookings.filter(b => new Date(b.date) < startOfToday),
         }
     }
 }
