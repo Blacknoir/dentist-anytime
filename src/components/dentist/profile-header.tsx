@@ -18,7 +18,7 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
 
     const handleShare = async () => {
         const shareData = {
-            title: `${dentist.user.name} - Dentist Anytime`,
+            title: `${dentist.user.name} - Dentora`,
             text: `${t('pages.profile.book_appointment')} - ${dentist.user.name}`,
             url: window.location.href,
         }

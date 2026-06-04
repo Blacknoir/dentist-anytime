@@ -7,13 +7,15 @@ import { prisma } from "@/lib/prisma"
 export async function signInWithGoogle(role: string = "PATIENT") {
     const cookieStore = await cookies()
     cookieStore.set("pending_role", role)
-    await authSignIn("google", { redirectTo: "/dashboard" })
+    const redirectTo = role === "DENTIST" ? "/dashboard/profile" : "/dashboard"
+    await authSignIn("google", { redirectTo })
 }
 
 export async function signInWithFacebook(role: string = "PATIENT") {
     const cookieStore = await cookies()
     cookieStore.set("pending_role", role)
-    await authSignIn("facebook", { redirectTo: "/dashboard" })
+    const redirectTo = role === "DENTIST" ? "/dashboard/profile" : "/dashboard"
+    await authSignIn("facebook", { redirectTo })
 }
 
 export async function signOut() {
