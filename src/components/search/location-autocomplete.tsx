@@ -68,9 +68,13 @@ export function LocationAutocomplete({ value, onChange, onSelect, placeholder }:
                 )
                 break
             case 'Enter':
-                e.preventDefault()
                 if (selectedIndex >= 0 && selectedIndex < predictions.length) {
+                    e.preventDefault()
                     onSelect(predictions[selectedIndex])
+                    setShowSuggestions(false)
+                } else {
+                    // Καμία highlighted πρόταση: κλείσε τη λίστα και άσε τη φόρμα
+                    // να κάνει submit με το ελεύθερο κείμενο (text search)
                     setShowSuggestions(false)
                 }
                 break

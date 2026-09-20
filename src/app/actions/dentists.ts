@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { matchesLocation } from "@/lib/location-match"
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
     const R = 6371 // Radius of earth in km
@@ -16,98 +17,6 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 
 function deg2rad(deg: number) {
     return deg * (Math.PI / 180)
-}
-
-// City name mappings for intelligent matching
-// Maps various city name variations to a standardized name
-const CITY_MAPPINGS: Record<string, string[]> = {
-    "Athens": ["Αθήνα", "Athina", "Αθηνα"],
-    "Thessaloniki": ["Θεσσαλονίκη", "Thessaloniki", "Θεσσαλονικη", "Thessaloniki", "Thessalonikis"],
-    "Patra": ["Πάτρα", "Patras", "Patra", "Πατρα"],
-    "Heraklion": ["Ηράκλειο", "Iraklion", "Irakleio", "Ηρακλειο", "Heraklion"],
-    "Volos": ["Βόλος", "Volos", "Βολος"],
-    "Larissa": ["Λάρισσα", "Larisa", "Λαρισσα", "Larissa"],
-    "Komotini": ["Κομοτηνή", "Komotini", "Κομοτηνη"],
-    "Ioannina": ["Ιωάννινα", "Ioannina", "Ιωαννινα"],
-    "New York": ["Νέα Υόρκη", "New York", "Νεα Υορκη", "NYC"],
-    "Queens": ["Κουίνς", "Queens", "Κουινς"],
-    "Brooklyn": ["Μπρούκλιν", "Brooklyn", "Μπρουκλιν"],
-    "Manhattan": ["Μανχάταν", "Manhattan", "Μανχαταν"],
-    "Bronx": ["Μπρονξ", "Bronx"],
-    "Staten Island": ["Στάτεν Άιλαντ", "Staten Island", "Στατεν Αιλαντ"]
-}
-
-// Reverse mapping: maps each variation to the standardized name
-const REVERSE_CITY_MAPPINGS: Record<string, string> = {}
-
-// Build reverse mappings
-for (const [standardName, variations] of Object.entries(CITY_MAPPINGS)) {
-    for (const variation of variations) {
-        // Add both lowercase and original for case-insensitive matching
-        REVERSE_CITY_MAPPINGS[variation.toLowerCase()] = standardName
-        REVERSE_CITY_MAPPINGS[variation] = standardName
-    }
-    // Also map the standard name to itself
-    REVERSE_CITY_MAPPINGS[standardName.toLowerCase()] = standardName
-    REVERSE_CITY_MAPPINGS[standardName] = standardName
-}
-
-/**
- * Extracts the city name from a location string
- * Handles various formats like "Thessaloniki, Greece" or "Θεσσαλονίκη"
- */
-function extractCityName(location: string): string | null {
-    if (!location) return null
-
-    // Remove common suffixes
-    const cleaned = location
-        .replace(/,\s*Greece$/i, "")
-        .replace(/,\s*Ελλάδα$/i, "")
-        .replace(/,\s*USA$/i, "")
-        .replace(/,\s*United States$/i, "")
-        .replace(/,\s*NY$/i, "")
-        .replace(/,\s*NYC$/i, "")
-        .trim()
-
-    // Check if the cleaned location matches any variation
-    const normalized = cleaned.toLowerCase()
-    const standardName = REVERSE_CITY_MAPPINGS[normalized] || REVERSE_CITY_MAPPINGS[cleaned]
-
-    if (standardName) {
-        return standardName
-    }
-
-    // If no exact match, try to find a partial match
-    for (const [standardName, variations] of Object.entries(CITY_MAPPINGS)) {
-        for (const variation of variations) {
-            if (normalized.includes(variation.toLowerCase()) ||
-                variation.toLowerCase().includes(normalized)) {
-                return standardName
-            }
-        }
-    }
-
-    // Return the cleaned location if no mapping found
-    return cleaned
-}
-
-/**
- * Checks if a dentist's location matches the search location
- * Handles both English and Greek city names
- */
-function matchesLocation(dentistLocation: string, searchLocation: string): boolean {
-    if (!dentistLocation || !searchLocation) return false
-
-    const searchCity = extractCityName(searchLocation)
-    const dentistCity = extractCityName(dentistLocation)
-
-    if (!searchCity || !dentistCity) return false
-
-    // If both are standardized names, compare them directly
-    const searchStandard = REVERSE_CITY_MAPPINGS[searchCity.toLowerCase()] || searchCity
-    const dentistStandard = REVERSE_CITY_MAPPINGS[dentistCity.toLowerCase()] || dentistCity
-
-    return searchStandard === dentistStandard
 }
 
 export async function getDentists(

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getLocalPlace } from '@/lib/greek-places'
 
 export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
@@ -9,6 +10,22 @@ export async function GET(request: NextRequest) {
             { error: 'Place ID is required' },
             { status: 400 }
         )
+    }
+
+    // Τοπικό place (fallback χωρίς Google): επιστροφή αποθηκευμένων συντεταγμένων
+    if (placeId.startsWith('local:')) {
+        const local = getLocalPlace(placeId.slice('local:'.length))
+        if (!local) {
+            return NextResponse.json({ error: 'Unknown local place' }, { status: 400 })
+        }
+        return NextResponse.json({
+            lat: local.lat,
+            lng: local.lng,
+            city: local.name,
+            streetAddress: '',
+            houseNumber: '',
+            formattedAddress: `${local.name}, Ελλάδα`,
+        })
     }
 
     try {
@@ -22,7 +39,7 @@ export async function GET(request: NextRequest) {
         }
 
         const response = await fetch(
-            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,address_components,formatted_address&key=${apiKey}`
+            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,address_components,formatted_address&language=el&key=${apiKey}`
         )
 
         if (!response.ok) {

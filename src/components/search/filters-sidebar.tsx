@@ -151,12 +151,29 @@ export function FiltersSidebar() {
 
                 {/* Location Autocomplete */}
                 <div className="mb-6">
-                    <LocationAutocomplete
-                        value={locationInput}
-                        onChange={setLocationInput}
-                        onSelect={handleLocationSelect}
-                        placeholder={t('pages.search.location_placeholder') || "Enter city or location"}
-                    />
+                    <form
+                        onSubmit={(e) => {
+                            e.preventDefault()
+                            // Ελεύθερο κείμενο: ψάξε με κείμενο και καθάρισε τυχόν
+                            // παλιές συντεταγμένες από προηγούμενη επιλογή
+                            const params = new URLSearchParams(searchParams.toString())
+                            if (locationInput.trim()) {
+                                params.set('location', locationInput.trim())
+                            } else {
+                                params.delete('location')
+                            }
+                            params.delete('lat')
+                            params.delete('lng')
+                            router.push(`/search?${params.toString()}`)
+                        }}
+                    >
+                        <LocationAutocomplete
+                            value={locationInput}
+                            onChange={setLocationInput}
+                            onSelect={handleLocationSelect}
+                            placeholder={t('pages.search.location_placeholder') || "Enter city or location"}
+                        />
+                    </form>
                 </div>
 
                 <Accordion type="multiple" defaultValue={["specialty", "availability", "price"]} className="w-full">

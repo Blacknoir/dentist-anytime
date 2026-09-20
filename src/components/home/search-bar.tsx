@@ -37,7 +37,13 @@ export function SearchBar() {
     }
 
     return (
-        <div className="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-100">
+        <form
+            onSubmit={(e) => {
+                e.preventDefault()
+                handleSearch()
+            }}
+            className="w-full max-w-4xl mx-auto bg-white rounded-2xl shadow-xl border border-gray-100"
+        >
             <div className="p-2 md:p-4 flex flex-col md:flex-row gap-2 md:gap-4 items-stretch">
                 <div className="flex-1">
                     <LocationAutocomplete
@@ -49,7 +55,7 @@ export function SearchBar() {
                 </div>
 
                 <Button
-                    onClick={handleSearch}
+                    type="submit"
                     size="lg"
                     className="h-12 px-8 text-base shadow-lg shadow-primary-500/20 gap-2"
                 >
@@ -57,6 +63,6 @@ export function SearchBar() {
                     {t('search.button')}
                 </Button>
             </div>
-        </div>
+        </form>
     )
 }
