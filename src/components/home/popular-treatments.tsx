@@ -13,42 +13,36 @@ export function PopularTreatments() {
             icon: Sparkles,
             title: t('popular.whitening_title'),
             description: t('popular.whitening_desc'),
-            count: `2,500+ ${t('popular.bookings')}`,
             href: "/services#whitening"
         },
         {
             icon: Activity,
             title: t('popular.root_canal_title'),
             description: t('popular.root_canal_desc'),
-            count: `1,200+ ${t('popular.bookings')}`,
             href: "/services#root-canal"
         },
         {
             icon: Shield,
             title: t('popular.implants_title'),
             description: t('popular.implants_desc'),
-            count: `800+ ${t('popular.bookings')}`,
             href: "/services#implants"
         },
         {
             icon: Smile,
             title: t('popular.veneers_title'),
             description: t('popular.veneers_desc'),
-            count: `1,500+ ${t('popular.bookings')}`,
             href: "/services#veneers"
         },
         {
             icon: Zap,
             title: t('popular.emergency_title'),
             description: t('popular.emergency_desc'),
-            count: `3,000+ ${t('popular.bookings')}`,
             href: "/services#emergency"
         },
         {
             icon: Heart,
             title: t('popular.cleaning_title'),
             description: t('popular.cleaning_desc'),
-            count: `10k+ ${t('popular.bookings')}`,
             href: "/services#cleaning"
         },
     ]
@@ -90,13 +84,9 @@ export function PopularTreatments() {
                                 <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary-600 transition-colors">
                                     {treatment.title}
                                 </h3>
-                                <p className="text-gray-500 text-sm mb-4 leading-relaxed">
+                                <p className="text-gray-500 text-sm leading-relaxed">
                                     {treatment.description}
                                 </p>
-                                <div className="flex items-center text-xs font-medium text-gray-400">
-                                    <Activity className="h-3 w-3 mr-1" />
-                                    {treatment.count}
-                                </div>
                             </motion.div>
                         </Link>
                     ))}

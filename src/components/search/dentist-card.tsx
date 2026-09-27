@@ -133,11 +133,11 @@ export function DentistCard({
                                     <p className="text-xs text-gray-500">{t('pages.search.from')}</p>
                                     <p className="text-lg font-bold text-gray-900">{price}</p>
                                 </div>
-                                <Button asChild disabled={!isStripeEnabled} className={!isStripeEnabled ? "opacity-50" : ""}>
+                                <Button asChild className="shadow-sm transition-all">
                                     <span>{t('pages.search.book_now')}</span>
                                 </Button>
                             </div>
-                            <Button asChild disabled={!isStripeEnabled} className={`hidden sm:flex shadow-sm transition-all ${!isStripeEnabled ? "opacity-50" : "group-hover:shadow-md"}`}>
+                            <Button asChild className="hidden sm:flex shadow-sm transition-all group-hover:shadow-md">
                                 <span>{t('pages.search.book_now')}</span>
                             </Button>
                         </div>

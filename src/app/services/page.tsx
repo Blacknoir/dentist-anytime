@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { ArrowRight, CheckCircle2 } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
 
@@ -98,10 +98,6 @@ export default function ServicesPage() {
                                     transition={{ duration: 0.6 }}
                                     className="flex-1 space-y-6"
                                 >
-                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-100 text-primary-700 text-sm font-semibold">
-                                        <CheckCircle2 className="h-4 w-4" />
-                                        Premium Service
-                                    </div>
                                     <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
                                         {service.title}
                                     </h2>
@@ -142,6 +138,13 @@ export default function ServicesPage() {
                             </div>
                         ))}
                     </div>
+                </div>
+
+                {/* Disclaimer */}
+                <div className="container mx-auto px-4 mt-20">
+                    <p className="text-xs text-gray-400 leading-relaxed max-w-4xl mx-auto text-center">
+                        {t('pages.services.disclaimer')}
+                    </p>
                 </div>
 
                 {/* CTA Section */}

@@ -193,10 +193,10 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
             <Button
                 className="w-full h-12 rounded-xl text-sm font-bold shadow-lg shadow-primary-100"
                 size="lg"
-                disabled={!selectedSlot || !dentist.isStripeEnabled}
+                disabled={!selectedSlot}
                 onClick={handleBook}
             >
-                {!dentist.isStripeEnabled ? t('pages.profile.booking_unavailable') : selectedSlot ? `${t('pages.profile.book_for')} ${selectedSlot}` : t('pages.profile.select_time')}
+                {selectedSlot ? `${t('pages.profile.book_for')} ${selectedSlot}` : t('pages.profile.select_time')}
             </Button>
 
             <p className="text-center text-[10px] text-gray-400 mt-4 leading-relaxed uppercase tracking-tighter">

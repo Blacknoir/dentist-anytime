@@ -1,6 +1,6 @@
 "use server"
 
-import { stripe } from "@/lib/stripe"
+import { stripe, PLATFORM_FEE_CENTS } from "@/lib/stripe"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
@@ -120,39 +120,72 @@ export async function getStripeAccountStatus() {
     }
 }
 
+export async function getPaymentBreakdown(dentistProfileId: string) {
+    const dentist = await prisma.dentistProfile.findUnique({
+        where: { id: dentistProfileId },
+        select: { stripeAccountId: true, priceFrom: true }
+    })
+
+    // Προαιρετική προκαταβολή: μόνο αν ο οδοντίατρος έχει συνδέσει Stripe.
+    // Η χρέωση πλατφόρμας (€3) ισχύει ΠΑΝΤΑ.
+    const depositCents = dentist?.stripeAccountId
+        ? Math.round((dentist.priceFrom || 50) * 100)
+        : 0
+
+    return {
+        depositCents,
+        feeCents: PLATFORM_FEE_CENTS,
+        totalCents: depositCents + PLATFORM_FEE_CENTS,
+        hasDeposit: depositCents > 0,
+    }
+}
+
 export async function createPaymentIntent(amount: number, dentistProfileId: string) {
     const session = await auth()
     if (!session?.user?.id) return { error: "Unauthorized. You must be logged in to book." }
 
+    // Τα ποσά υπολογίζονται ΠΑΝΤΑ server-side — το amount του client αγνοείται.
+    const { depositCents, feeCents, totalCents, hasDeposit } = await getPaymentBreakdown(dentistProfileId)
+
     const dentist = await prisma.dentistProfile.findUnique({
         where: { id: dentistProfileId },
-        select: { stripeAccountId: true, commissionRate: true }
+        select: { stripeAccountId: true }
     })
-
-    if (!dentist?.stripeAccountId) {
-        return { error: "Dentist has not configured their payment processor yet." }
-    }
-
-    // Calculate application fee (commission)
-    // amount is in cents
-    const commissionRate = dentist.commissionRate || 10 // default to 10% if 0 or null
-    const applicationFee = Math.round(amount * (commissionRate / 100))
 
     let paymentIntent;
     try {
-        paymentIntent = await stripe.paymentIntents.create({
-            amount: amount,
-            currency: "eur",
-            automatic_payment_methods: { enabled: true },
-            application_fee_amount: applicationFee,
-            transfer_data: {
-                destination: dentist.stripeAccountId,
-            },
-            metadata: {
-                dentistProfileId,
-                patientId: session.user.id
-            }
-        });
+        if (hasDeposit && dentist?.stripeAccountId) {
+            // Με προκαταβολή: ο ασθενής χρεώνεται deposit + fee. Το deposit
+            // πηγαίνει στον οδοντίατρο (Connect destination), το fee μένει Dentora.
+            paymentIntent = await stripe.paymentIntents.create({
+                amount: totalCents,
+                currency: "eur",
+                automatic_payment_methods: { enabled: true },
+                application_fee_amount: feeCents,
+                transfer_data: {
+                    destination: dentist.stripeAccountId,
+                },
+                metadata: {
+                    dentistProfileId,
+                    patientId: session.user.id,
+                    depositCents: String(depositCents),
+                }
+            });
+        } else {
+            // Χωρίς Stripe οδοντιάτρου: μόνο το platform fee, κατευθείαν στη Dentora.
+            // Η κράτηση ολοκληρώνεται κανονικά — ο οδοντίατρος απλώς δεν λαμβάνει προκαταβολή.
+            paymentIntent = await stripe.paymentIntents.create({
+                amount: totalCents,
+                currency: "eur",
+                automatic_payment_methods: { enabled: true },
+                metadata: {
+                    dentistProfileId,
+                    patientId: session.user.id,
+                    depositCents: "0",
+                    platformOnly: "true",
+                }
+            });
+        }
     } catch (error: any) {
         console.error("Stripe payment intent creation error:", error);
         return { error: `Stripe error: ${error.message}` };
@@ -160,6 +193,10 @@ export async function createPaymentIntent(amount: number, dentistProfileId: stri
 
     return {
         clientSecret: paymentIntent.client_secret,
-        id: paymentIntent.id
+        id: paymentIntent.id,
+        depositCents,
+        feeCents,
+        totalCents,
+        hasDeposit,
     }
 }

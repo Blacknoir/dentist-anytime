@@ -7,15 +7,15 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
-import { CheckCircle2, TrendingUp, Users, ShieldCheck, Zap, Globe, BarChart3, Clock } from "lucide-react"
+import { CheckCircle2, Zap, Globe, BarChart3, Clock, CalendarCheck, Inbox, BellRing } from "lucide-react"
 
 export default function ForDentistsPage() {
     const { t } = useLanguage()
 
     const stats = [
-        { label: t('dentists.stats.patients'), value: '500k+', icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-        { label: t('dentists.stats.growth'), value: '45%', icon: TrendingUp, color: 'text-green-600', bg: 'bg-green-50' },
-        { label: t('dentists.stats.satisfaction'), value: '98%', icon: ShieldCheck, color: 'text-purple-600', bg: 'bg-purple-50' },
+        { label: t('dentists.stats.patients'), icon: CalendarCheck, color: 'text-blue-600', bg: 'bg-blue-50' },
+        { label: t('dentists.stats.growth'), icon: Inbox, color: 'text-green-600', bg: 'bg-green-50' },
+        { label: t('dentists.stats.satisfaction'), icon: BellRing, color: 'text-purple-600', bg: 'bg-purple-50' },
     ]
 
     const features = [
@@ -104,8 +104,7 @@ export default function ForDentistsPage() {
                                         <stat.icon className="h-8 w-8" />
                                     </div>
                                     <div>
-                                        <div className="text-3xl font-bold text-slate-900">{stat.value}</div>
-                                        <div className="text-slate-500 font-medium">{stat.label}</div>
+                                        <div className="text-lg font-bold text-slate-900 leading-snug">{stat.label}</div>
                                     </div>
                                 </motion.div>
                             ))}
@@ -186,7 +185,7 @@ export default function ForDentistsPage() {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <Zap className="h-6 w-6 text-primary-200" />
-                                        <span>No upfront costs or hidden fees</span>
+                                        <span>{t('dentists.cta.note')}</span>
                                     </div>
                                 </div>
                                 <Button size="lg" className="bg-white text-primary-600 hover:bg-primary-50 h-14 text-lg" asChild>
@@ -196,15 +195,14 @@ export default function ForDentistsPage() {
                                 </Button>
                             </div>
                             <div className="flex-1 p-12 md:p-16 flex flex-col justify-center border-l border-slate-100">
-                                <h3 className="text-2xl font-bold text-slate-900 mb-8">What you'll get:</h3>
+                                <h3 className="text-2xl font-bold text-slate-900 mb-8">{t('dentists.includes.title')}:</h3>
                                 <div className="grid grid-cols-1 gap-6">
                                     {[
-                                        'Professional Verified Profile',
-                                        'Direct Booking Integration',
-                                        'Automatic SMS/Email Reminders',
-                                        'Patient Feedback Management',
-                                        'Advanced SEO Optimization',
-                                        '24/7 Dedicated Support'
+                                        t('dentists.includes.item1'),
+                                        t('dentists.includes.item2'),
+                                        t('dentists.includes.item3'),
+                                        t('dentists.includes.item4'),
+                                        t('dentists.includes.item5'),
                                     ].map((item, idx) => (
                                         <div key={idx} className="flex items-center gap-4 text-slate-600">
                                             <div className="h-2 w-2 rounded-full bg-primary-500" />
