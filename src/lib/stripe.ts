@@ -17,11 +17,6 @@ export function getCommissionRate(): number {
     return 10 // Default 10% commission rate
 }
 
-// Παγία χρέωση χρήσης πλατφόρμας ανά κράτηση (σε EUR). Χρεώνεται ΠΑΝΤΑ στον
-// ασθενή, ανεξάρτητα από το αν ο οδοντίατρος λαμβάνει προκαταβολή μέσω Stripe.
-export const PLATFORM_FEE_EUR = 3
-export const PLATFORM_FEE_CENTS = 300
-
 export async function createCheckoutSession(params: {
     bookingId: string
     serviceName: string

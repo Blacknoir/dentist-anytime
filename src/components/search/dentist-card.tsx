@@ -33,8 +33,7 @@ export function DentistCard({
     nextSlots,
     price,
     verified = true,
-    distance = null,
-    isStripeEnabled = false
+    distance = null
 }: DentistCardProps) {
     const { t } = useLanguage()
 

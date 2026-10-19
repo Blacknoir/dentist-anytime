@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyWebhookSignature, getCommissionRate } from '@/lib/stripe'
+import { verifyWebhookSignature } from '@/lib/stripe'
 import Stripe from 'stripe'
 
 export async function POST(request: Request) {
@@ -37,23 +37,13 @@ export async function POST(request: Request) {
                 })
 
                 if (booking?.dentistProfile) {
-                    const commissionRate = getCommissionRate()
-                    const commissionAmount = booking.price * commissionRate
-
+                    // Καμία προμήθεια πλατφόρμας: ο οδοντίατρος πιστώνεται ολόκληρο το ποσό.
                     await prisma.dentistProfile.update({
                         where: { id: booking.dentistProfile.id },
                         data: {
                             earnings: {
-                                increment: booking.price - commissionAmount,
+                                increment: booking.price,
                             },
-                        },
-                    })
-
-                    // Update booking with commission amount
-                    await prisma.booking.update({
-                        where: { id: bookingId },
-                        data: {
-                            commissionAmount: commissionAmount,
                         },
                     })
                 }

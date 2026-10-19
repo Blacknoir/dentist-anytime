@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
-import { stripe, PLATFORM_FEE_CENTS } from "@/lib/stripe"
+import { stripe } from "@/lib/stripe"
 
 export async function createBooking(formData: {
     dentistProfileId: string
@@ -30,35 +30,39 @@ export async function createBooking(formData: {
         select: { email: true, name: true }
     })
 
-    // Επαλήθευση πληρωμής server-side: το PaymentIntent πρέπει να είναι
-    // επιτυχημένο, να ανήκει στον ίδιο ασθενή/οδοντίατρο και το ποσό να
-    // ταιριάζει με deposit + platform fee (όχι blind trust στον client).
-    const stripePaymentId = (formData as any).stripePaymentId as string | undefined
-    if (!stripePaymentId) {
-        throw new Error("Missing payment reference")
+    // Αν ο οδοντίατρος έχει συνδέσει Stripe, ο ασθενής προπληρώνει την
+    // προκαταβολή online, οπότε επαληθεύουμε server-side το PaymentIntent
+    // (status, ιδιοκτήτης, οδοντίατρος, ποσό) — όχι blind trust στον client.
+    // Χωρίς Stripe δεν απαιτείται πληρωμή και η κράτηση ολοκληρώνεται κανονικά.
+    const hasStripe = !!dentist?.stripeAccountId
+    let stripePaymentId: string | undefined
+    let depositCents = 0
+
+    if (hasStripe) {
+        stripePaymentId = (formData as any).stripePaymentId as string | undefined
+        if (!stripePaymentId) {
+            throw new Error("Missing payment reference")
+        }
+
+        depositCents = Math.round((dentist?.priceFrom || 50) * 100)
+
+        const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentId)
+        if (paymentIntent.status !== "succeeded") {
+            throw new Error("Payment has not completed yet")
+        }
+        if (paymentIntent.metadata?.patientId !== session.user.id) {
+            throw new Error("Payment does not belong to this patient")
+        }
+        if (paymentIntent.metadata?.dentistProfileId !== formData.dentistProfileId) {
+            throw new Error("Payment does not match this dentist")
+        }
+        if (paymentIntent.amount !== depositCents) {
+            throw new Error("Payment amount mismatch")
+        }
     }
 
-    const depositCents = dentist?.stripeAccountId
-        ? Math.round((dentist.priceFrom || 50) * 100)
-        : 0
-    const expectedTotalCents = depositCents + PLATFORM_FEE_CENTS
-
-    const paymentIntent = await stripe.paymentIntents.retrieve(stripePaymentId)
-    if (paymentIntent.status !== "succeeded") {
-        throw new Error("Payment has not completed yet")
-    }
-    if (paymentIntent.metadata?.patientId !== session.user.id) {
-        throw new Error("Payment does not belong to this patient")
-    }
-    if (paymentIntent.metadata?.dentistProfileId !== formData.dentistProfileId) {
-        throw new Error("Payment does not match this dentist")
-    }
-    if (paymentIntent.amount !== expectedTotalCents) {
-        throw new Error("Payment amount mismatch")
-    }
-
-    // price = προκαταβολή οδοντιάτρου (0 αν δεν έχει Stripe),
-    // commissionAmount = η χρέωση πλατφόρμας (€3) που κρατά η Dentora.
+    // price = προκαταβολή οδοντίατρου (0 αν δεν έχει Stripe).
+    // commissionAmount = 0: η πλατφόρμα δεν κρατά προμήθεια.
     const booking = await prisma.booking.create({
         data: {
             patientId: session.user.id,
@@ -66,10 +70,10 @@ export async function createBooking(formData: {
             serviceName: formData.serviceName,
             date: formData.date,
             status: "CONFIRMED",
-            paymentStatus: "COMPLETED",
+            paymentStatus: hasStripe ? "COMPLETED" : "PENDING",
             stripePaymentId,
             price: depositCents / 100, // Store in EUR
-            commissionAmount: PLATFORM_FEE_CENTS / 100
+            commissionAmount: 0
         }
     })
 
@@ -192,14 +196,12 @@ export async function cancelBooking(bookingId: string) {
 
     // Update dentist earnings (subtract the amount that was previously added)
     if (refundedSuccessfully && booking.dentistProfile) {
-        const commissionRate = booking.dentistProfile.commissionRate || 10
-        const dentistEarnings = booking.price - (booking.price * commissionRate / 100)
-        
+        // Καμία προμήθεια πλατφόρμας: ο οδοντίατρος είχε πιστωθεί ολόκληρο το ποσό.
         await prisma.dentistProfile.update({
             where: { id: booking.dentistProfile.id },
             data: {
                 earnings: {
-                    decrement: Math.max(0, dentistEarnings)
+                    decrement: Math.max(0, booking.price)
                 }
             }
         })

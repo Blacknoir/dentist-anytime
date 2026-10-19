@@ -73,11 +73,6 @@ export function ServicesList({ services, consultationFee }: ServicesListProps) {
                                         </div>
                                         <div className="flex flex-col items-end gap-1">
                                             <span className="font-bold text-gray-900 text-lg">{item.price}</span>
-                                            {!item.isConsultation && (
-                                                <span className="text-[10px] text-gray-400 italic">
-                                                    {t('pages.profile.balance_info')}
-                                                </span>
-                                            )}
                                         </div>
                                     </div>
                                 ))}

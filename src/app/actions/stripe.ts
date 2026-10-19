@@ -1,6 +1,6 @@
 "use server"
 
-import { stripe, PLATFORM_FEE_CENTS } from "@/lib/stripe"
+import { stripe } from "@/lib/stripe"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
@@ -126,16 +126,15 @@ export async function getPaymentBreakdown(dentistProfileId: string) {
         select: { stripeAccountId: true, priceFrom: true }
     })
 
-    // Προαιρετική προκαταβολή: μόνο αν ο οδοντίατρος έχει συνδέσει Stripe.
-    // Η χρέωση πλατφόρμας (€3) ισχύει ΠΑΝΤΑ.
+    // Η Dentora δεν χρεώνει τίποτα αυτή τη στιγμή. Ο ασθενής προπληρώνει
+    // ΜΟΝΟ την προκαταβολή του οδοντίατρου, και μόνο αν αυτός έχει Stripe.
     const depositCents = dentist?.stripeAccountId
         ? Math.round((dentist.priceFrom || 50) * 100)
         : 0
 
     return {
         depositCents,
-        feeCents: PLATFORM_FEE_CENTS,
-        totalCents: depositCents + PLATFORM_FEE_CENTS,
+        totalCents: depositCents,
         hasDeposit: depositCents > 0,
     }
 }
@@ -144,48 +143,42 @@ export async function createPaymentIntent(amount: number, dentistProfileId: stri
     const session = await auth()
     if (!session?.user?.id) return { error: "Unauthorized. You must be logged in to book." }
 
-    // Τα ποσά υπολογίζονται ΠΑΝΤΑ server-side — το amount του client αγνοείται.
-    const { depositCents, feeCents, totalCents, hasDeposit } = await getPaymentBreakdown(dentistProfileId)
+    // Το ποσό υπολογίζεται ΠΑΝΤΑ server-side — το amount του client αγνοείται.
+    const { depositCents, totalCents, hasDeposit } = await getPaymentBreakdown(dentistProfileId)
 
     const dentist = await prisma.dentistProfile.findUnique({
         where: { id: dentistProfileId },
         select: { stripeAccountId: true }
     })
 
+    // Χωρίς συνδεδεμένο Stripe δεν υπάρχει online πληρωμή: η κράτηση
+    // ολοκληρώνεται κανονικά χωρίς χρέωση (ο ασθενής πληρώνει στο ιατρείο).
+    if (!hasDeposit || !dentist?.stripeAccountId) {
+        return {
+            noPaymentRequired: true,
+            depositCents: 0,
+            totalCents: 0,
+            hasDeposit: false,
+        }
+    }
+
     let paymentIntent;
     try {
-        if (hasDeposit && dentist?.stripeAccountId) {
-            // Με προκαταβολή: ο ασθενής χρεώνεται deposit + fee. Το deposit
-            // πηγαίνει στον οδοντίατρο (Connect destination), το fee μένει Dentora.
-            paymentIntent = await stripe.paymentIntents.create({
-                amount: totalCents,
-                currency: "eur",
-                automatic_payment_methods: { enabled: true },
-                application_fee_amount: feeCents,
-                transfer_data: {
-                    destination: dentist.stripeAccountId,
-                },
-                metadata: {
-                    dentistProfileId,
-                    patientId: session.user.id,
-                    depositCents: String(depositCents),
-                }
-            });
-        } else {
-            // Χωρίς Stripe οδοντιάτρου: μόνο το platform fee, κατευθείαν στη Dentora.
-            // Η κράτηση ολοκληρώνεται κανονικά — ο οδοντίατρος απλώς δεν λαμβάνει προκαταβολή.
-            paymentIntent = await stripe.paymentIntents.create({
-                amount: totalCents,
-                currency: "eur",
-                automatic_payment_methods: { enabled: true },
-                metadata: {
-                    dentistProfileId,
-                    patientId: session.user.id,
-                    depositCents: "0",
-                    platformOnly: "true",
-                }
-            });
-        }
+        // Το 100% της προκαταβολής πηγαίνει στον οδοντίατρο. Καμία προμήθεια
+        // πλατφόρμας (application_fee) δεν χρεώνεται.
+        paymentIntent = await stripe.paymentIntents.create({
+            amount: totalCents,
+            currency: "eur",
+            automatic_payment_methods: { enabled: true },
+            transfer_data: {
+                destination: dentist.stripeAccountId,
+            },
+            metadata: {
+                dentistProfileId,
+                patientId: session.user.id,
+                depositCents: String(depositCents),
+            }
+        });
     } catch (error: any) {
         console.error("Stripe payment intent creation error:", error);
         return { error: `Stripe error: ${error.message}` };
@@ -195,8 +188,7 @@ export async function createPaymentIntent(amount: number, dentistProfileId: stri
         clientSecret: paymentIntent.client_secret,
         id: paymentIntent.id,
         depositCents,
-        feeCents,
         totalCents,
-        hasDeposit,
+        hasDeposit: true,
     }
 }

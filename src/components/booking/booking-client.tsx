@@ -36,12 +36,11 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
 
     const dentistId = dentist.id
     const consultationFee = dentist.priceFrom
-    // Πρέπει να ταιριάζει με το PLATFORM_FEE_EUR στο lib/stripe.ts.
-    // Το τελικό ποσό υπολογίζεται ΠΑΝΤΑ server-side — εδώ είναι μόνο προεπισκόπηση.
-    const PLATFORM_FEE_EUR = 3
+    // Η πλατφόρμα δεν χρεώνει τίποτα. Αν ο οδοντίατρος έχει Stripe, ο ασθενής
+    // προπληρώνει την προκαταβολή του (priceFrom). Το τελικό ποσό υπολογίζεται
+    // ΠΑΝΤΑ server-side — εδώ είναι μόνο προεπισκόπηση.
     const hasDeposit = !!dentist.stripeAccountId
     const depositPreview = hasDeposit ? consultationFee : 0
-    const totalPreview = depositPreview + PLATFORM_FEE_EUR
 
     const handleNext = async () => {
         if (currentStep === 3) {
@@ -54,7 +53,7 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
         }
     }
 
-    const handlePaymentSuccess = async (id: string) => {
+    const handlePaymentSuccess = async (id: string | null) => {
         setPaymentIntentId(id)
         setIsSubmitting(true)
         try {
@@ -74,7 +73,7 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                 dentistProfileId: dentistId,
                 serviceName: bookingData.service || "Consultation",
                 date: bookingDate,
-                ...({ stripePaymentId: id } as any)
+                ...(id ? ({ stripePaymentId: id } as any) : {})
             })
         } catch (error) {
             console.error("Booking record creation failed (payment was successful):", error)
@@ -158,30 +157,20 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                                 </div>
                                 <div className="border-t border-gray-200 pt-6 flex flex-col items-end gap-3">
                                     <div className="w-full space-y-2 text-sm">
-                                        {hasDeposit && (
-                                            <div className="flex justify-between items-center w-full">
-                                                <span className="font-medium text-gray-500">{t('pages.booking.deposit')}</span>
-                                                <span className="font-bold text-gray-900">€{depositPreview}</span>
-                                            </div>
+                                        {hasDeposit ? (
+                                            <>
+                                                <div className="flex justify-between items-center w-full">
+                                                    <span className="font-medium text-gray-500">{t('pages.booking.deposit')}</span>
+                                                    <span className="font-bold text-gray-900">€{depositPreview}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center w-full border-t border-dashed border-gray-200 pt-2">
+                                                    <span className="font-bold text-gray-900">{t('pages.booking.total')}</span>
+                                                    <span className="text-3xl font-black text-primary-600">€{depositPreview}</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-sm text-gray-500">{t('pages.booking.no_payment_note')}</p>
                                         )}
-                                        <div className="flex justify-between items-center w-full">
-                                            <span className="font-medium text-gray-500">{t('pages.booking.platform_fee')}</span>
-                                            <span className="font-bold text-gray-900">€{PLATFORM_FEE_EUR}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center w-full border-t border-dashed border-gray-200 pt-2">
-                                            <span className="font-bold text-gray-900">{t('pages.booking.total')}</span>
-                                            <span className="text-3xl font-black text-primary-600">€{totalPreview}</span>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        {!hasDeposit && (
-                                            <p className="text-xs text-gray-500 max-w-xs ml-auto mb-2">
-                                                {t('pages.booking.fee_only_note')}
-                                            </p>
-                                        )}
-                                        <p className="text-xs text-gray-400 mt-2 italic max-w-xs ml-auto">
-                                            *All other treatment costs will be settled at the clinic.
-                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -191,7 +180,11 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                         <div className="space-y-6">
                             <div className="text-center mb-8">
                                 <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('pages.booking.complete_payment')}</h2>
-                                <p className="text-gray-500">Secure payment of €{totalPreview} for your booking.</p>
+                                <p className="text-gray-500">
+                                    {hasDeposit
+                                        ? `${t('pages.booking.secure_payment_intro')} €${depositPreview}`
+                                        : t('pages.booking.no_payment_note')}
+                                </p>
                             </div>
                             <StripePayment
                                 dentistProfileId={dentistId}

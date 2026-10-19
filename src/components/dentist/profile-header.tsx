@@ -149,17 +149,11 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
                                         <Heart className={`h-4 w-4 transition-all ${isLiked ? 'fill-red-500 text-red-500 scale-110' : ''}`} />
                                     </Button>
                                 </div>
-                                {dentist.isStripeEnabled ? (
-                                    <Button size="lg" className="w-full sm:w-auto shadow-lg shadow-primary-500/20 px-8" asChild>
-                                        <Link href={`/booking?dentistId=${dentist.id}`}>
-                                            {t('pages.profile.book_appointment')}
-                                        </Link>
-                                    </Button>
-                                ) : (
-                                    <Button size="lg" disabled className="w-full sm:w-auto shadow-sm px-8 opacity-50 cursor-not-allowed">
+                                <Button size="lg" className="w-full sm:w-auto shadow-lg shadow-primary-500/20 px-8" asChild>
+                                    <Link href={`/booking?dentistId=${dentist.id}`}>
                                         {t('pages.profile.book_appointment')}
-                                    </Button>
-                                )}
+                                    </Link>
+                                </Button>
                             </div>
                         </div>
                     </div>
