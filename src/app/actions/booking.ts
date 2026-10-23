@@ -4,11 +4,14 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { stripe } from "@/lib/stripe"
+import { buildAppointmentDate, isSlotAvailable } from "@/lib/availability"
 
 export async function createBooking(formData: {
     dentistProfileId: string
     serviceName: string
-    date: Date
+    dateKey: string
+    time: string
+    stripePaymentId?: string
 }) {
     const session = await auth()
 
@@ -21,9 +24,32 @@ export async function createBooking(formData: {
         select: {
             stripeAccountId: true,
             priceFrom: true,
+            availability: {
+                select: { dayOfWeek: true, startTime: true, endTime: true }
+            },
+            exceptions: {
+                select: { date: true, isClosed: true, startTime: true, endTime: true }
+            },
             user: { select: { email: true, name: true } }
         }
     })
+
+    if (!dentist) {
+        throw new Error("Dentist not found")
+    }
+
+    // Οι ώρες κράτησης πρέπει να προέρχονται από το πρόγραμμα του οδοντίατρου.
+    // Ο έλεγχος γίνεται server-side ώστε να μην παρακάμπτεται από τον client.
+    const appointmentDate = buildAppointmentDate(formData.dateKey, formData.time)
+    if (!appointmentDate) {
+        throw new Error("Invalid appointment date or time")
+    }
+    if (appointmentDate <= new Date()) {
+        throw new Error("The selected appointment time has already passed")
+    }
+    if (!isSlotAvailable(dentist, appointmentDate, formData.time)) {
+        throw new Error("The selected appointment time is not available")
+    }
 
     const patient = await prisma.user.findUnique({
         where: { id: session.user.id },
@@ -39,7 +65,7 @@ export async function createBooking(formData: {
     let depositCents = 0
 
     if (hasStripe) {
-        stripePaymentId = (formData as any).stripePaymentId as string | undefined
+        stripePaymentId = formData.stripePaymentId
         if (!stripePaymentId) {
             throw new Error("Missing payment reference")
         }
@@ -68,7 +94,7 @@ export async function createBooking(formData: {
             patientId: session.user.id,
             dentistProfileId: formData.dentistProfileId,
             serviceName: formData.serviceName,
-            date: formData.date,
+            date: appointmentDate,
             status: "CONFIRMED",
             paymentStatus: hasStripe ? "COMPLETED" : "PENDING",
             stripePaymentId,
@@ -79,7 +105,7 @@ export async function createBooking(formData: {
 
     const dentistEmail = dentist?.user?.email || "Unknown"
     const patientEmail = patient?.email || session?.user?.email || "Unknown"
-    const bookingDateStr = formData.date.toLocaleString()
+    const bookingDateStr = appointmentDate.toLocaleString()
 
     console.log(`[EMAIL MOCK] To: ${dentistEmail}, Subject: New Booking Received, Content: You have a new booking from ${patient?.name || "Patient"} for ${formData.serviceName} on ${bookingDateStr}.`)
     console.log(`[EMAIL MOCK] To: ${patientEmail}, Subject: Booking Confirmed, Content: Your booking with ${dentist?.user?.name || "Dentist"} for ${formData.serviceName} on ${bookingDateStr} is confirmed.`)

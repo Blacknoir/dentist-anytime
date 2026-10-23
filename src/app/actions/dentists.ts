@@ -128,7 +128,7 @@ export async function getDentistById(id: string) {
             services: true,
             availability: true,
             exceptions: true
-        } as any
+        }
     })
 
     return dentist

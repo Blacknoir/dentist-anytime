@@ -2,10 +2,10 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import Link from "next/link"
 import { Star, MapPin, ShieldCheck, Share2, Heart, Clock, Award, Users, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLanguage } from "@/lib/LanguageContext"
+import { hasAnyAvailability } from "@/lib/availability"
 
 interface ProfileHeaderProps {
     dentist: any
@@ -15,6 +15,7 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
     const { t } = useLanguage()
     const [isLiked, setIsLiked] = useState(false)
     const [showCopied, setShowCopied] = useState(false)
+    const canBook = hasAnyAvailability(dentist)
 
     const handleShare = async () => {
         const shareData = {
@@ -149,11 +150,17 @@ export function ProfileHeader({ dentist }: ProfileHeaderProps) {
                                         <Heart className={`h-4 w-4 transition-all ${isLiked ? 'fill-red-500 text-red-500 scale-110' : ''}`} />
                                     </Button>
                                 </div>
-                                <Button size="lg" className="w-full sm:w-auto shadow-lg shadow-primary-500/20 px-8" asChild>
-                                    <Link href={`/booking?dentistId=${dentist.id}`}>
-                                        {t('pages.profile.book_appointment')}
-                                    </Link>
-                                </Button>
+                                {canBook ? (
+                                    <Button size="lg" className="w-full sm:w-auto shadow-lg shadow-primary-500/20 px-8" asChild>
+                                        <a href="#booking">
+                                            {t('pages.profile.book_appointment')}
+                                        </a>
+                                    </Button>
+                                ) : (
+                                    <Button size="lg" disabled className="w-full sm:w-auto shadow-sm px-8 opacity-50 cursor-not-allowed">
+                                        {t('pages.profile.booking_unavailable')}
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </div>

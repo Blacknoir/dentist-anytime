@@ -6,11 +6,19 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useLanguage } from "@/lib/LanguageContext"
 import { format, addDays, startOfToday, isSameDay } from "date-fns"
+import { getDaySlots } from "@/lib/availability"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 
 interface AvailabilityCalendarProps {
     dentist: any
+}
+
+function formatTimeStr(time: string) {
+    const [hours, minutes] = time.split(':').map(Number)
+    const value = new Date()
+    value.setHours(hours, minutes, 0, 0)
+    return format(value, "hh:mm a")
 }
 
 export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
@@ -26,64 +34,16 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
     // Generate 7 days from startDate
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(startDate, i))
 
-    // Dynamic time slot generator
-    const generateSlots = (date: Date) => {
-        const dateString = format(date, "yyyy-MM-dd")
-        const dateExceptions = dentist.exceptions?.filter((e: any) => {
-            const eDate = new Date(e.date)
-            return eDate.toISOString().split('T')[0] === dateString
-        }) || []
-
-        const dayOfWeek = date.getDay()
-        const weeklyAvails = dentist.availability?.filter((a: any) => a.dayOfWeek === dayOfWeek) || []
-
-        // Logic for determining blocks
-        let blocks: { startTime: string, endTime: string }[] = []
-
-        if (dateExceptions.length > 0) {
-            // Check if any exception marks the day as closed
-            if (dateExceptions.some((e: any) => e.isClosed)) return []
-            blocks = dateExceptions.map((e: any) => ({ startTime: e.startTime, endTime: e.endTime }))
-        } else {
-            blocks = weeklyAvails.map((a: any) => ({ startTime: a.startTime, endTime: a.endTime }))
-        }
-
-        if (blocks.length === 0) return []
-
-        const now = new Date()
-        const allSlots: any[] = []
-
-        blocks.forEach(block => {
-            if (!block.startTime || !block.endTime) return
-
-            // Create date objects for comparison
-            const [startH, startM] = block.startTime.split(':').map(Number)
-            const slotStart = new Date(date)
-            slotStart.setHours(startH, startM, 0, 0)
-
-            const isTodayDay = isSameDay(date, now)
-            if (!isTodayDay || slotStart > now) {
-                // Use a helper to format the display range
-                const formatTimeStr = (t: string) => {
-                    const [h, m] = t.split(':').map(Number)
-                    const d = new Date()
-                    d.setHours(h, m, 0, 0)
-                    return format(d, "hh:mm a")
-                }
-
-                allSlots.push({
-                    time: block.startTime,
-                    display: `${formatTimeStr(block.startTime)} - ${formatTimeStr(block.endTime)}`,
-                    available: true
-                })
-            }
-        })
-
-        // Sort slots by time
-        return allSlots.sort((a, b) => a.time.localeCompare(b.time))
-    }
-
-    const slots = React.useMemo(() => generateSlots(selectedDate), [selectedDate, dentist])
+    // Time slots come from the dentist's weekly schedule and date exceptions.
+    const slots = React.useMemo(
+        () =>
+            getDaySlots(dentist, selectedDate).map((slot) => ({
+                time: slot.startTime,
+                display: `${formatTimeStr(slot.startTime)} - ${formatTimeStr(slot.endTime)}`,
+                available: true,
+            })),
+        [selectedDate, dentist]
+    )
 
     const handleBook = async () => {
         if (!session) {
@@ -106,7 +66,7 @@ export function AvailabilityCalendar({ dentist }: AvailabilityCalendarProps) {
     }
 
     return (
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm h-fit sticky top-24">
+        <div id="booking" className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm h-fit sticky top-24 scroll-mt-24">
             <div className="flex items-center justify-between mb-6">
                 <div>
                     <h2 className="text-xl font-bold text-gray-900">{t('pages.profile.book_appointment')}</h2>

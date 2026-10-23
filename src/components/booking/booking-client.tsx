@@ -26,13 +26,13 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
 
     const [bookingData, setBookingData] = React.useState({
         service: preselectedService || null as string | null,
-        date: preselectedDate || t('pages.booking.mock_date').split(' • ')[0],
-        time: preselectedTime || t('pages.booking.mock_date').split(' • ')[1],
+        dateKey: preselectedDate || "",
+        time: preselectedTime || "",
         patient: null as PatientFormData | null,
     })
 
-    const [paymentIntentId, setPaymentIntentId] = React.useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = React.useState(false)
+    const [submitError, setSubmitError] = React.useState<string | null>(null)
 
     const dentistId = dentist.id
     const consultationFee = dentist.priceFrom
@@ -54,33 +54,25 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
     }
 
     const handlePaymentSuccess = async (id: string | null) => {
-        setPaymentIntentId(id)
         setIsSubmitting(true)
+        setSubmitError(null)
         try {
-            // Build the actual booking date from selected date + time
-            let bookingDate: Date
-            if (bookingData.date && bookingData.time) {
-                const [hours, minutes] = bookingData.time.split(':').map(Number)
-                bookingDate = new Date(bookingData.date)
-                if (!isNaN(hours) && !isNaN(minutes)) {
-                    bookingDate.setHours(hours, minutes, 0, 0)
-                }
-            } else {
-                bookingDate = new Date()
-            }
-
             await createBooking({
                 dentistProfileId: dentistId,
                 serviceName: bookingData.service || "Consultation",
-                date: bookingDate,
-                ...(id ? ({ stripePaymentId: id } as any) : {})
+                dateKey: bookingData.dateKey,
+                time: bookingData.time,
+                stripePaymentId: id ?? undefined,
             })
-        } catch (error) {
-            console.error("Booking record creation failed (payment was successful):", error)
-            // Payment already went through, so we still redirect to success
-        } finally {
-            // Always redirect to success - the payment was already captured
             router.push("/booking/success")
+        } catch (error) {
+            console.error("Booking record creation failed:", error)
+            setSubmitError(
+                error instanceof Error
+                    ? error.message
+                    : "The booking could not be completed. Please try again."
+            )
+            setIsSubmitting(false)
         }
     }
 
@@ -124,7 +116,7 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                     )}
                     {currentStep === 2 && (
                         <StepTime
-                            selectedDate={bookingData.date}
+                            selectedDate={bookingData.dateKey}
                             selectedTime={bookingData.time}
                         />
                     )}
@@ -145,7 +137,7 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                                     </div>
                                     <div className="space-y-1">
                                         <span className="text-xs uppercase tracking-wider font-bold text-gray-400">Date & Time</span>
-                                        <p className="font-bold text-gray-900">{bookingData.date}, {bookingData.time}</p>
+                                        <p className="font-bold text-gray-900">{bookingData.dateKey}, {bookingData.time}</p>
                                     </div>
                                     <div className="space-y-1 md:col-span-2">
                                         <span className="text-xs uppercase tracking-wider font-bold text-gray-400">Patient</span>
@@ -190,6 +182,11 @@ export function BookingClient({ dentist, preselectedDate, preselectedTime, prese
                                 dentistProfileId={dentistId}
                                 onSuccess={handlePaymentSuccess}
                             />
+                            {submitError && (
+                                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                                    {submitError}
+                                </div>
+                            )}
                             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 mt-8 space-y-2">
                                 <p className="text-xs text-gray-500 text-center font-medium">
                                     {t('booking.cancel_policy')}
