@@ -7,6 +7,49 @@ import { prisma } from "@/lib/prisma"
 
 import { cookies } from "next/headers"
 
+// Creates the profile that matches the selected role (dentist / lab / CAD designer).
+async function ensureRoleProfile(userId: string, role: string) {
+    if (role === "DENTIST") {
+        const profile = await prisma.dentistProfile.findUnique({ where: { userId } })
+        if (!profile) {
+            await prisma.dentistProfile.create({
+                data: {
+                    userId,
+                    specialty: "General Dentist",
+                    location: "To be updated",
+                    experienceYears: 0,
+                    priceFrom: 0,
+                    about: "New dentist profile",
+                }
+            })
+        }
+        return
+    }
+
+    if (role === "LAB") {
+        const profile = await prisma.labProfile.findUnique({ where: { userId } })
+        if (!profile) {
+            const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
+            await prisma.labProfile.create({
+                data: {
+                    userId,
+                    labName: user?.name ? `${user.name} Lab` : "Νέο οδοντοτεχνικό εργαστήριο",
+                }
+            })
+        }
+        return
+    }
+
+    if (role === "DESIGNER") {
+        const profile = await prisma.designerProfile.findUnique({ where: { userId } })
+        if (!profile) {
+            await prisma.designerProfile.create({
+                data: { userId, headline: "CAD Designer" }
+            })
+        }
+    }
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(prisma),
     providers: [
@@ -108,25 +151,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         where: { id: user.id },
                         data: { role: pendingRole }
                     })
+                }
 
-                    // Create dentist profile if it doesn't exist
-                    if (pendingRole === "DENTIST") {
-                        const profile = await prisma.dentistProfile.findUnique({
-                            where: { userId: user.id }
-                        })
-                        if (!profile) {
-                            await prisma.dentistProfile.create({
-                                data: {
-                                    userId: user.id,
-                                    specialty: "General Dentist",
-                                    location: "To be updated",
-                                    experienceYears: 0,
-                                    priceFrom: 0,
-                                    about: "New dentist profile",
-                                }
-                            })
-                        }
-                    }
+                // Create the profile for the selected role (dentist / lab / designer)
+                if (["DENTIST", "LAB", "DESIGNER"].includes(pendingRole)) {
+                    await ensureRoleProfile(user.id, pendingRole)
                 }
 
                 // Clear the cookie
@@ -164,17 +193,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     data: { role: pendingRole }
                 })
 
-                if (pendingRole === "DENTIST") {
-                    await prisma.dentistProfile.create({
-                        data: {
-                            userId: user.id,
-                            specialty: "General Dentist",
-                            location: "To be updated",
-                            experienceYears: 0,
-                            priceFrom: 0,
-                            about: "New dentist profile",
-                        }
-                    })
+                if (["DENTIST", "LAB", "DESIGNER"].includes(pendingRole)) {
+                    await ensureRoleProfile(user.id, pendingRole)
                 }
             }
         }

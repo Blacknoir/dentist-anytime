@@ -1,195 +1,514 @@
-"use client";
+import Link from "next/link"
+import { notFound } from "next/navigation"
+import {
+    ArrowLeft,
+    CalendarClock,
+    CheckCircle2,
+    Clock,
+    FileUp,
+    History,
+    MessageSquare,
+    Package,
+    RefreshCcw,
+    ShieldCheck,
+    Sparkles,
+    Users,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getLabActor, getLabCaseById } from "@/app/actions/lab"
+import { FileRow, PaymentBadge, StatusBadge, Stars } from "@/components/lab/lab-components"
+import {
+    AcceptOfferButton,
+    ApproveDeliveryButton,
+    CancelCaseButton,
+    DeliverableUpload,
+    FileHint,
+    InlineNotice,
+    OfferForm,
+    RevisionRequest,
+    StartProductionButton,
+} from "@/components/lab/case-panel"
+import { CasePaymentPanel } from "@/components/lab/case-payment"
+import { euros, formatDate, formatDateTime, LAB_PLATFORM_FEE_RATE } from "@/lib/lab"
 
-import { useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { MOCK_CASES, labById, commissionOf, labPayout, COMMISSION_RATE, type LabOffer } from "@/lib/lab-mock";
-import { StatusBadge, LabStars } from "@/components/lab/lab-components";
-import { FileUp, Camera, Check, CreditCard, Truck, FlaskConical, History } from "lucide-react";
-import { cn } from "@/lib/utils";
+export const dynamic = "force-dynamic"
 
-function fileIcon(kind: string) {
-  if (kind === "STL") return <FileUp className="h-4 w-4 text-primary-600" />;
-  if (kind === "PHOTO") return <Camera className="h-4 w-4 text-green-600" />;
-  return <FileUp className="h-4 w-4 text-gray-500" />;
-}
+export default async function LabCaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params
+    const actor = await getLabActor()
+    const target = await getLabCaseById(id)
 
-export default function LabCaseDetailPage() {
-  const params = useParams();
-  const id = params.id as string;
+    if (!target) notFound()
 
-  const base = useMemo(() => {
-    const fromMock = MOCK_CASES.find((c) => c.id === id);
-    if (fromMock) return fromMock;
-    try {
-      const mine = JSON.parse(localStorage.getItem("dentora-lab-cases") || "[]");
-      return mine.find((c: { id: string }) => c.id === id);
-    } catch { return undefined; }
-  }, [id]);
+    const isOwner = actor?.userId === target.customerId
+    const isAssigned = !!actor?.designerProfileId && target.assignedDesignerId === actor.designerProfileId
+    const isAdmin = actor?.isAdmin
+    const myOffer = target.offers.find((offer) => offer.designerProfileId === actor?.designerProfileId)
 
-  const [selectedOfferId, setSelectedOfferId] = useState<string | null>(base?.assignedLabId ? base.offers.find((o: LabOffer) => o.labId === base.assignedLabId)?.id ?? null : null);
-  const [paid, setPaid] = useState(false);
-  const [labBid, setLabBid] = useState({ price: "", days: "", message: "" });
-  const [extraOffers, setExtraOffers] = useState<LabOffer[]>([]);
+    // Files are private until the work is assigned.
+    const visibleFiles = isOwner || isAssigned || isAdmin ? target.files : []
+    // The owner sees every offer, a designer only their own.
+    const visibleOffers = isOwner || isAdmin ? target.offers : myOffer ? [myOffer] : []
+    // The customer identity stays hidden from competing designers.
+    const customerName = isOwner || isAssigned || isAdmin ? target.customer.name : "Εμπισκευμένος"
 
-  if (!base) {
+    const canOffer =
+        !!actor?.isDesigner && !isOwner && ["OPEN", "QUOTED"].includes(target.status) && !isAssigned
+    const canPay = (isOwner || isAdmin) && target.status === "ASSIGNED" && target.paymentStatus === "UNPAID"
+    const canApprove = (isOwner || isAdmin) && target.status === "DELIVERED"
+    const canRequestRevision = (isOwner || isAdmin) && ["DELIVERED", "IN_PRODUCTION"].includes(target.status)
+    const canDeliver = isAssigned && ["ASSIGNED", "IN_PRODUCTION"].includes(target.status)
+
+    const designerServiceHint = actor?.designerProfileId
+        ? target.assignedDesigner?.services?.[0]?.price ?? null
+        : null
+
     return (
-      <main className="min-h-screen bg-white"><Header />
-        <div className="pt-32 text-center">Δεν βρέθηκε η εργασία. <Link href="/lab/cases" className="text-primary-600 underline">Πίσω</Link></div>
-      </main>
-    );
-  }
+        <div className="pt-14 pb-20">
+            <div className="container mx-auto px-4 md:px-6 max-w-6xl">
+                <Link href="/lab/cases" className="text-sm text-gray-500 hover:text-gray-900 inline-flex items-center gap-1">
+                    <ArrowLeft className="h-4 w-4" /> Πίσω στο board
+                </Link>
 
-  const allOffers = [...extraOffers, ...base.offers];
-  const sorted = [...allOffers].sort((a, b) => a.price - b.price);
-  const selected = sorted.find((o) => o.id === selectedOfferId);
-  const selectedLab = selected ? labById(selected.labId) : undefined;
-
-  const submitBid = () => {
-    if (!labBid.price) return;
-    setExtraOffers((prev) => [{
-      id: `demo-${Date.now()}`,
-      labId: "lab-5",
-      price: Number(labBid.price),
-      leadTimeDays: Number(labBid.days) || 4,
-      message: labBid.message || "Demo προσφορά από Express Mill Center.",
-      createdAt: new Date().toISOString().slice(0, 10),
-      prevCollaborations: 0,
-    }, ...prev]);
-    setLabBid({ price: "", days: "", message: "" });
-  };
-
-  return (
-    <main className="min-h-screen bg-white">
-      <Header />
-      <div className="pt-28 pb-16 container mx-auto px-4 md:px-6 max-w-6xl">
-        <Link href="/lab/cases" className="text-sm text-gray-500 hover:text-gray-900">← Πίσω στο board</Link>
-        <div className="flex flex-wrap items-center gap-3 mt-2">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{base.code} · {base.type}</h1>
-          <StatusBadge status={selectedOfferId ? "ASSIGNED" : base.status} />
-          {base.priority === "Express" && <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-1">EXPRESS</span>}
-        </div>
-        <p className="text-sm text-gray-500 mt-1">{base.dentistName} · Δημιουργήθηκε {base.createdAt} · Παράδοση {base.deadline}</p>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          {/* Left: case */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card><CardHeader><CardTitle className="text-base">Στοιχεία περιστατικού</CardTitle></CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[["Είδος", base.type], ["Υλικό", base.material], ["Απόχρωση", base.shade], ["Τεμάχια", String(base.units)]].map(([k, v]) => (
-                    <div key={k} className="bg-gray-50 rounded-xl p-3"><div className="text-[11px] uppercase font-bold text-gray-400">{k}</div><div className="font-bold text-gray-900">{v}</div></div>
-                  ))}
-                </div>
-                <p className="text-gray-600">{base.description}</p>
-                <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase text-gray-400">Αρχεία (STL / φωτογραφίες)</div>
-                  {base.files.map((f: { name: string; size: string; kind: string }) => (
-                    <div key={f.name} className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
-                      <span className="flex items-center gap-2 font-medium text-gray-700">{fileIcon(f.kind)} {f.name}</span>
-                      <span className="text-xs text-gray-400">{f.kind} · {f.size}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle className="text-base">Προσφορές εργαστηρίων ({sorted.length}) — σύγκριση</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {sorted.length === 0 && <p className="text-sm text-gray-500">Καμία προσφορά ακόμα. Στο demo μπορείς να προσθέσεις μία από το κουτί δεξιά (“ως εργαστήριο”).</p>}
-                {sorted.map((o) => {
-                  const lab = labById(o.labId);
-                  const active = o.id === selectedOfferId;
-                  return (
-                    <div key={o.id} className={cn("border rounded-2xl p-4 transition-colors", active ? "border-primary-400 ring-1 ring-primary-200 bg-primary-50/40" : "border-gray-200 bg-white")}>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <strong className="text-gray-900">{lab?.name}</strong>
-                            {lab?.isDentoraLab && <span className="inline-flex items-center gap-1 text-[11px] font-bold text-primary-700 bg-primary-50 border border-primary-200 rounded-full px-2 py-0.5"><FlaskConical className="h-3 w-3" /> Smile Lab</span>}
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                            {lab && <LabStars rating={lab.rating} count={lab.reviewCount} />}
-                            <span>⏱ {o.leadTimeDays} ημ.</span>
-                            {(o.prevCollaborations ?? 0) > 0 && <span className="text-xs">· {o.prevCollaborations} προηγ. συνεργασίες</span>}
-                          </div>
-                          <p className="text-sm text-gray-600 mt-2">“{o.message}”</p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-gray-900">€{o.price}</div>
-                          <Button size="sm" variant={active ? "default" : "outline"} className="mt-2" onClick={() => setSelectedOfferId(o.id)}>
-                            {active ? <><Check className="h-4 w-4 mr-1" /> Επιλεγμένο</> : "Επιλογή"}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-
-            <Card><CardHeader><CardTitle className="text-base flex items-center gap-2"><History className="h-4 w-4" /> Ιστορικό / Tracking (demo)</CardTitle></CardHeader>
-              <CardContent>
-                <ol className="relative border-l border-gray-200 ml-2 space-y-4 text-sm">
-                  {[["Δημιουργία εργασίας", base.createdAt, true], ["Λήψη προσφορών", "αυτόματα", true], ["Ανάθεση σε εργαστήριο", selected ? "μόλις επέλεξες ✓" : "εκκρεμεί", !!selected], ["Παραγωγή → Αποστολή → Παράδοση", "μετά την πληρωμή", paid]].map(([t, d, done]) => (
-                    <li key={t as string} className="ml-4">
-                      <span className={cn("absolute -left-[7px] mt-1 h-3 w-3 rounded-full border-2", done ? "bg-green-500 border-green-500" : "bg-white border-gray-300")} />
-                      <div className="font-bold text-gray-900">{t}</div><div className="text-gray-500 text-xs">{d as string}</div>
-                    </li>
-                  ))}
-                </ol>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right: payment + lab bid */}
-          <div className="space-y-6">
-            <Card className="border-primary-100">
-              <CardHeader><CardTitle className="text-base flex items-center gap-2"><CreditCard className="h-4 w-4" /> Πληρωμή μέσω Dentora</CardTitle></CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                {!selected ? (
-                  <p className="text-gray-500">Διάλεξε μία προσφορά για να δεις την ανάλυση πληρωμής (τιμή / προμήθεια {COMMISSION_RATE}% / payout lab).</p>
-                ) : (
-                  <>
-                    <div className="flex justify-between"><span className="text-gray-500">Εργασία ({selectedLab?.name})</span><strong>€{selected.price}</strong></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Προμήθεια Dentora ({COMMISSION_RATE}%)</span><strong>€{commissionOf(selected.price)}</strong></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Πληρωτέο στο lab</span><strong>€{labPayout(selected.price)}</strong></div>
-                    <div className="flex justify-between border-t border-dashed border-gray-200 pt-2"><span className="font-bold">Χρεώνεσαι</span><span className="font-bold text-lg">€{selected.price}</span></div>
-                    {!paid ? (
-                      <Button className="w-full" onClick={() => setPaid(true)}>Πλήρωσε €{selected.price} (demo — χωρίς χρέωση)</Button>
-                    ) : (
-                      <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-green-800">
-                        <div className="font-bold flex items-center gap-1"><Check className="h-4 w-4" /> Πληρωμή επιτυχής (demo)</div>
-                        <div className="text-xs mt-1 flex items-center gap-1"><Truck className="h-3.5 w-3.5" /> Το lab ενημερώθηκε και ξεκινά παραγωγή.</div>
-                      </div>
+                <div className="flex flex-wrap items-center gap-3 mt-3">
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+                        {target.code} · {target.title}
+                    </h1>
+                    <StatusBadge status={target.status} />
+                    <PaymentBadge status={target.paymentStatus} />
+                    {target.priority === "EXPRESS" && (
+                        <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-1">
+                            EXPRESS
+                        </span>
                     )}
-                    <p className="text-[11px] text-gray-400">Στο πραγματικό προϊόν εδώ μπαίνει Stripe Checkout με escrow: κράτηση τώρα, capture στην παράδοση, αυτόματο transfer στο lab.</p>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle className="text-base">Κάνε προσφορά (ως εργαστήριο)</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <Input placeholder="Τιμή €" inputMode="numeric" value={labBid.price} onChange={(e) => setLabBid({ ...labBid, price: e.target.value })} />
-                  <Input placeholder="Ημέρες" inputMode="numeric" value={labBid.days} onChange={(e) => setLabBid({ ...labBid, days: e.target.value })} />
                 </div>
-                <Input placeholder="Μήνυμα προς οδοντίατρο..." value={labBid.message} onChange={(e) => setLabBid({ ...labBid, message: e.target.value })} />
-                <Button variant="outline" className="w-full" onClick={submitBid}>Υποβολή προσφοράς (demo)</Button>
-              </CardContent>
-            </Card>
-          </div>
+                <p className="text-sm text-gray-500 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span>{customerName}</span>
+                    <span>Δημιουργήθηκε {formatDate(target.createdAt)}</span>
+                    {target.deadline && (
+                        <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="h-3.5 w-3.5" /> Παράδοση {formatDate(target.deadline)}
+                        </span>
+                    )}
+                </p>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                    {/* Left column */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base">Στοιχεία περιστατικού</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4 text-sm">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                    {[
+                                        ["Είδος", target.type],
+                                        ["Υλικό", target.material],
+                                        ["Απόχρωση", target.shade || "—"],
+                                        ["Τεμάχια", String(target.units)],
+                                    ].map(([label, value]) => (
+                                        <div key={label} className="bg-gray-50 rounded-xl p-3">
+                                            <div className="text-[11px] uppercase font-bold text-gray-400">{label}</div>
+                                            <div className="font-bold text-gray-900">{value}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <p className="text-gray-600 whitespace-pre-line">{target.description}</p>
+
+                                {target.assignedDesigner && (
+                                    <div className="flex items-center justify-between gap-3 bg-violet-50/60 border border-violet-100 rounded-xl px-3 py-2">
+                                        <span className="flex items-center gap-2 text-sm">
+                                            <Users className="h-4 w-4 text-violet-600" />
+                                            <span className="text-gray-600">Ανατέθηκε στον</span>
+                                            <strong className="text-gray-900">
+                                                {target.assignedDesigner.user?.name || "CAD Designer"}
+                                            </strong>
+                                        </span>
+                                        <Link
+                                            href={`/lab/designers/${target.assignedDesigner.id}`}
+                                            className="text-xs font-bold text-violet-700"
+                                        >
+                                            Προφίλ →
+                                        </Link>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Files */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <FileUp className="h-4 w-4" /> Αρχεία ({visibleFiles.length})
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                {visibleFiles.length === 0 ? (
+                                    <p className="text-sm text-gray-500">
+                                        {isOwner || isAssigned
+                                            ? "Δεν έχουν ανεβαστεί αρχεία σε αυτή την εργασία."
+                                            : "Τα αρχεία της εργασίας είναι ιδιωτικά μέχρι να σου ανατεθεί."}
+                                    </p>
+                                ) : (
+                                    visibleFiles.map((file) => <FileRow key={file.id} file={file} />)
+                                )}
+                                <FileHint />
+                            </CardContent>
+                        </Card>
+
+                        {/* Offers */}
+                        {(isOwner || isAdmin || myOffer) && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base flex items-center gap-2">
+                                        <Sparkles className="h-4 w-4" /> Προσφορές ({visibleOffers.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    {visibleOffers.length === 0 && (
+                                        <p className="text-sm text-gray-500">
+                                            Δεν έχει λάβει ακόμα προσφορές. Μπορείς να επιλέξεις designer από το
+                                            προφίλ του ή να περιμένεις.
+                                        </p>
+                                    )}
+                                    {visibleOffers.map((offer) => {
+                                        const designer = offer.designerProfile
+                                        const isMine = offer.designerProfileId === actor?.designerProfileId
+                                        return (
+                                            <div
+                                                key={offer.id}
+                                                className="border border-gray-200 rounded-2xl p-4"
+                                            >
+                                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <strong className="text-gray-900">
+                                                                {designer.user?.name || "CAD Designer"}
+                                                            </strong>
+                                                            {designer.isVerified && (
+                                                                <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
+                                                                    Verified
+                                                                </span>
+                                                            )}
+                                                            {offer.status === "ACCEPTED" && (
+                                                                <span className="text-[11px] font-bold text-violet-700 bg-violet-50 border border-violet-200 rounded-full px-2 py-0.5">
+                                                                    Επιλεγμένος
+                                                                </span>
+                                                            )}
+                                                            {isMine && (
+                                                                <span className="text-[11px] font-bold text-primary-700 bg-primary-50 border border-primary-200 rounded-full px-2 py-0.5">
+                                                                    Η προσφορά σου
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                                                            {designer.reviewCount > 0 && (
+                                                                <Stars rating={designer.rating} count={designer.reviewCount} />
+                                                            )}
+                                                            <span className="inline-flex items-center gap-1">
+                                                                <Clock className="h-3.5 w-3.5" /> {offer.leadTimeDays} ημ.
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1">
+                                                                <Package className="h-3.5 w-3.5" /> {designer.completedCases}{" "}
+                                                                εργασίες
+                                                            </span>
+                                                        </div>
+                                                        {offer.message && (
+                                                            <p className="text-sm text-gray-600 mt-2">“{offer.message}”</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-2xl font-bold text-gray-900">{euros(offer.price)}</div>
+                                                        {isOwner &&
+                                                            target.status !== "COMPLETED" &&
+                                                            target.status !== "CANCELLED" &&
+                                                            offer.status === "PENDING" && (
+                                                                <div className="mt-2">
+                                                                    <AcceptOfferButton caseId={target.id} offerId={offer.id} />
+                                                                </div>
+                                                            )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Revisions */}
+                        {target.revisions.length > 0 && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base flex items-center gap-2">
+                                        <RefreshCcw className="h-4 w-4" /> Διορθώσεις ({target.revisions.length})
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    {target.revisions.map((revision) => (
+                                        <div key={revision.id} className="border border-gray-200 rounded-2xl p-4">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-xs font-bold uppercase text-gray-400">
+                                                    {revision.status === "REQUESTED"
+                                                        ? "Ζητήθηκε"
+                                                        : revision.status === "DELIVERED"
+                                                          ? "Στάλθηκε"
+                                                          : "Λύθηκε"}
+                                                </span>
+                                                <span className="text-xs text-gray-400">
+                                                    {formatDateTime(revision.createdAt)}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-gray-700 mt-2">{revision.message}</p>
+                                        </div>
+                                    ))}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Timeline */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <History className="h-4 w-4" /> Ιστορικό
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <ol className="relative border-l border-gray-200 ml-2 space-y-4 text-sm">
+                                    {[
+                                        ["Δημιουργία εργασίας", formatDate(target.createdAt), true],
+                                        [
+                                            "Λήψη προσφορών",
+                                            target.offers.length > 0 ? `${target.offers.length} προσφορές` : "σε αναμονή",
+                                            target.offers.length > 0,
+                                        ],
+                                        [
+                                            "Ανάθεση σε designer",
+                                            target.assignedDesigner?.user?.name || "εκκρεμεί",
+                                            !!target.assignedDesigner,
+                                        ],
+                                        [
+                                            "Πληρωμή (escrow)",
+                                            target.paymentStatus === "HELD"
+                                                ? "κρατήθηκε"
+                                                : target.paymentStatus === "RELEASED"
+                                                  ? "αποδεσμεύτηκε"
+                                                  : "εκκρεμεί",
+                                            ["HELD", "RELEASED"].includes(target.paymentStatus),
+                                        ],
+                                        [
+                                            "Παράδοση αρχείων",
+                                            target.status === "DELIVERED" || target.status === "COMPLETED"
+                                                ? "ολοκληρώθηκε"
+                                                : "εκκρεμεί",
+                                            ["DELIVERED", "COMPLETED"].includes(target.status),
+                                        ],
+                                        [
+                                            "Έγκριση & ολοκλήρωση",
+                                            target.status === "COMPLETED" ? "ολοκληρώθηκε" : "εκκρεμεί",
+                                            target.status === "COMPLETED",
+                                        ],
+                                    ].map(([title, detail, done]) => (
+                                        <li key={title as string} className="ml-4">
+                                            <span
+                                                className={`absolute -left-[7px] mt-1 h-3 w-3 rounded-full border-2 ${
+                                                    done ? "bg-green-500 border-green-500" : "bg-white border-gray-300"
+                                                }`}
+                                            />
+                                            <div className="font-bold text-gray-900">{title}</div>
+                                            <div className="text-gray-500 text-xs">{detail as string}</div>
+                                        </li>
+                                    ))}
+                                </ol>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Right column */}
+                    <div className="space-y-6">
+                        {/* Payment */}
+                        <Card className="border-primary-100">
+                            <CardHeader>
+                                <CardTitle className="text-base">Πληρωμή</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                                {target.agreedPrice ? (
+                                    <>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Σύνολο εργασίας</span>
+                                            <strong>{euros(target.agreedPrice)}</strong>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Προμήθεια Dentora ({LAB_PLATFORM_FEE_RATE}%)</span>
+                                            <strong>{euros(target.platformFee ?? 0)}</strong>
+                                        </div>
+                                        <div className="flex justify-between border-t border-dashed border-gray-200 pt-2">
+                                            <span className="text-gray-500">Πληρωμή στον designer</span>
+                                            <strong>{euros(target.designerPayout ?? 0)}</strong>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <p className="text-gray-500">
+                                        Δεν έχει επιλεγεί ακόμα designer, οπότε δεν υπάρχει τιμή.
+                                    </p>
+                                )}
+
+                                {canPay && target.agreedPrice && (
+                                    <div className="pt-2">
+                                        <CasePaymentPanel
+                                            caseId={target.id}
+                                            amountCents={Math.round(target.agreedPrice * 100)}
+                                            feeCents={Math.round((target.platformFee ?? 0) * 100)}
+                                            payoutCents={Math.round((target.designerPayout ?? 0) * 100)}
+                                            paymentStatus={target.paymentStatus}
+                                        />
+                                    </div>
+                                )}
+
+                                {target.paymentStatus === "HELD" && (
+                                    <InlineNotice tone="warn">
+                                        Το ποσό κρατείται σε ασφάλεια στη Dentora. Θα αποδεσμευτεί στον designer μόλις
+                                        εγκρίνεις την παράδοση.
+                                    </InlineNotice>
+                                )}
+                                {target.paymentStatus === "RELEASED" && (
+                                    <InlineNotice tone="success">
+                                        Η πληρωμή μεταφέρθηκε στον designer.
+                                    </InlineNotice>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Owner actions */}
+                        {(isOwner || isAdmin) && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">Ενέργειες πελάτη</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {canApprove && (
+                                        <>
+                                            <InlineNotice tone="success">
+                                                Ο designer παρέδωσε τα αρχεία. Έγκρινέ τα για να αποδεσμευτεί η πληρωμή.
+                                            </InlineNotice>
+                                            <ApproveDeliveryButton caseId={target.id} />
+                                        </>
+                                    )}
+
+                                    {canRequestRevision && target.status === "DELIVERED" && (
+                                        <RevisionRequest caseId={target.id} />
+                                    )}
+
+                                    {target.status === "OPEN" && (
+                                        <p className="text-sm text-gray-500">
+                                            Περιμένεις προσφορές. Μπορείς να επιλέξεις και συγκεκριμένο designer από τη
+                                            σελίδα του προφίλ του.
+                                        </p>
+                                    )}
+
+                                    {target.status === "ASSIGNED" && target.paymentStatus === "UNPAID" && (
+                                        <p className="text-sm text-gray-500">
+                                            Ολοκλήρωσε την πληρωμή για να ξεκινήσει η παραγωγή.
+                                        </p>
+                                    )}
+
+                                    {target.status === "IN_PRODUCTION" && (
+                                        <p className="text-sm text-gray-500">Ο designer εργάζεται στην εργασία σου.</p>
+                                    )}
+
+                                    {target.status === "COMPLETED" && (
+                                        <InlineNotice tone="success">
+                                            <CheckCircle2 className="h-3.5 w-3.5" /> Η εργασία ολοκληρώθηκε.
+                                        </InlineNotice>
+                                    )}
+
+                                    {["OPEN", "QUOTED", "ASSIGNED", "IN_PRODUCTION"].includes(target.status) && (
+                                        <CancelCaseButton caseId={target.id} />
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Designer actions */}
+                        {actor?.isDesigner && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">Ενέργειες designer</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {isAssigned ? (
+                                        <>
+                                            {canDeliver && <StartProductionButton caseId={target.id} />}
+                                            {canDeliver && (
+                                                <div className="space-y-2">
+                                                    <p className="text-sm font-medium text-gray-700">
+                                                        Ανέβασε τα ολοκληρωμένα αρχεία
+                                                    </p>
+                                                    <DeliverableUpload caseId={target.id} />
+                                                </div>
+                                            )}
+                                            {target.status === "DELIVERED" && (
+                                                <InlineNotice tone="info">
+                                                    Τα αρχεία σου στάλθηκαν στον πελάτη. Περιμένε έγκριση.
+                                                </InlineNotice>
+                                            )}
+                                            {target.status === "COMPLETED" && (
+                                                <InlineNotice tone="success">
+                                                    Η εργασία ολοκληρώθηκε και η πληρωμή σου αποδεσμεύτηκε.
+                                                </InlineNotice>
+                                            )}
+                                        </>
+                                    ) : canOffer ? (
+                                        <>
+                                            <p className="text-sm text-gray-600">
+                                                Στείλε τιμή και χρόνο παράδοσης. Ο πελάτης θα επιλέξει ανάμεσα στις
+                                                προσφορές.
+                                            </p>
+                                            <OfferForm
+                                                caseId={target.id}
+                                                priceHint={designerServiceHint}
+                                            />
+                                        </>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">
+                                            {myOffer
+                                                ? "Έχεις στείλει προσφορά σε αυτή την εργασία."
+                                                : "Δεν μπορείς να κάνεις προσφορά σε αυτή την εργασία."}
+                                        </p>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Selected designer shortcut for owners */}
+                        {isOwner && target.status === "OPEN" && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">Επιλογή designer</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-2 text-sm text-gray-600">
+                                    <p>
+                                        Θέλεις να αναθέσεις την εργασία σε συγκεκριμένο designer; Δημιούργησε νέα εργασία
+                                        με preselected designer από το προφίλ του.
+                                    </p>
+                                    <Button variant="outline" size="sm" asChild>
+                                        <Link href="/lab/designers">Δες τους designers</Link>
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        <div className="flex items-start gap-2 text-[11px] text-gray-400 leading-relaxed">
+                            <ShieldCheck className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                            <span>
+                                Τα αρχεία της εργασίας είναι ιδιωτικά. Ο designer βλέπει τη σάρωση μόνο αφού του
+                                ανατεθεί η εργασία.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-      <Footer />
-    </main>
-  );
+    )
 }

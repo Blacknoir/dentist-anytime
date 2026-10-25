@@ -1,110 +1,251 @@
-import Link from "next/link";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { MOCK_LABS, MOCK_CASES, COMMISSION_RATE } from "@/lib/lab-mock";
-import { LabCard, CaseCard } from "@/components/lab/lab-components";
-import { Upload, Store, BadgeCheck, CreditCard, FlaskConical, ArrowRight, ShieldCheck } from "lucide-react";
+import Link from "next/link"
+import { ArrowRight, BadgeCheck, CreditCard, FileUp, MessagesSquare, PackageCheck, ShieldCheck, Sparkles, Users } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { prisma } from "@/lib/prisma"
+import { CaseCard, DesignerCard } from "@/components/lab/lab-components"
+import { LAB_PLATFORM_FEE_RATE, euros } from "@/lib/lab"
 
-export default function LabMarketplacePage() {
-  return (
-    <main className="min-h-screen bg-white">
-      <Header />
-      {/* Hero */}
-      <section className="pt-32 pb-12 bg-gradient-to-b from-primary-50/80 to-white">
-        <div className="container mx-auto px-4 md:px-6 max-w-6xl">
-          <div className="inline-flex items-center gap-2 bg-white border border-primary-100 rounded-full px-3 py-1 text-xs font-bold text-primary-700 shadow-sm mb-5">
-            <FlaskConical className="h-3.5 w-3.5" /> DEMO · B2B Marketplace Οδοντιάτρων → Εργαστηρίων
-          </div>
-          <h1 className="text-3xl md:text-5xl font-bold text-gray-900 leading-tight max-w-3xl">
-            Στείλε την εργασία σου στο εργαστήριο — <span className="text-primary-500">χωρίς τηλέφωνα και courier στο άγνωστο.</span>
-          </h1>
-          <p className="text-gray-500 mt-4 max-w-2xl">
-            Ανεβάζεις STL + φωτογραφίες + οδηγίες, παίρνεις προσφορές από verified labs,
-            διαλέγεις με βάση τιμή / χρόνο / αξιολόγηση, πληρώνεις μέσα στην πλατφόρμα.
-            Η Dentora κρατάει {COMMISSION_RATE}% προμήθεια. Μπορείς να στείλεις και απευθείας στο <strong>Dentora Smile Lab</strong>.
-          </p>
-          <div className="flex flex-wrap gap-3 mt-6">
-            <Button size="lg" asChild><Link href="/lab/new">+ Νέα εργαστηριακή εργασία <ArrowRight className="h-4 w-4 ml-1" /></Link></Button>
-            <Button size="lg" variant="outline" asChild><Link href="/lab/cases">Δες ανοιχτές εργασίες ({MOCK_CASES.length})</Link></Button>
-            <Button size="lg" variant="outline" asChild><Link href="/lab/labs">Βρες εργαστήριο ({MOCK_LABS.length})</Link></Button>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8 text-sm">
-            {[
-              { icon: Upload, t: "Upload STL + shade" },
-              { icon: Store, t: "Προσφορές από labs" },
-              { icon: ShieldCheck, t: "Verified labs μόνο" },
-              { icon: CreditCard, t: `Πληρωμή + ${COMMISSION_RATE}% fee` },
-            ].map((s) => (
-              <div key={s.t} className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl px-3 py-2.5 shadow-sm">
-                <s.icon className="h-4 w-4 text-primary-500 shrink-0" />
-                <span className="font-medium text-gray-700">{s.t}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+export const dynamic = "force-dynamic"
 
-      {/* How it works */}
-      <section className="py-12">
-        <div className="container mx-auto px-4 md:px-6 max-w-6xl">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Πώς δουλεύει (demo ροή)</h2>
-          <p className="text-sm text-gray-500 mb-6">Ασθενής → Οδοντίατρος → Εργαστήριο. Εσύ βλέπεις και τις 3 πλευρές σε ένα μέρος.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card><CardContent className="p-5">
-              <div className="text-xs font-bold text-primary-600 mb-1">ΒΗΜΑ 1 · ΟΔΟΝΤΙΑΤΡΟΣ</div>
-              <h3 className="font-bold">Δημιουργεί εργασία</h3>
-              <p className="text-sm text-gray-500 mt-1">Είδος, υλικό, απόχρωση, deadline, STL/φωτογραφίες. Επιλέγει “Smile Lab” ή “Ανοιχτό marketplace”.</p>
-              <Button size="sm" variant="outline" className="mt-3" asChild><Link href="/lab/new">Δοκίμασε τη φόρμα</Link></Button>
-            </CardContent></Card>
-            <Card><CardContent className="p-5">
-              <div className="text-xs font-bold text-primary-600 mb-1">ΒΗΜΑ 2 · ΕΡΓΑΣΤΗΡΙΑ</div>
-              <h3 className="font-bold">Κάνουν προσφορά</h3>
-              <p className="text-sm text-gray-500 mt-1">Βλέπουν ανοιχτές εργασίες, απαντούν με τιμή + χρόνο παράδοσης + μήνυμα.</p>
-              <Button size="sm" variant="outline" className="mt-3" asChild><Link href="/lab/cases">Δες το board εργασιών</Link></Button>
-            </CardContent></Card>
-            <Card><CardContent className="p-5">
-              <div className="text-xs font-bold text-primary-600 mb-1">ΒΗΜΑ 3 · ΑΝΑΘΕΣΗ + ΠΛΗΡΩΜΗ</div>
-              <h3 className="font-bold">Επιλογή + {COMMISSION_RATE}%</h3>
-              <p className="text-sm text-gray-500 mt-1">Ο οδοντίατρος συγκρίνει, αναθέτει, πληρώνει. Το lab παίρνει το ποσό μείον προμήθεια.</p>
-              <Button size="sm" variant="outline" className="mt-3" asChild><Link href="/lab/cases/case-1">Δες σύγκριση προσφορών</Link></Button>
-            </CardContent></Card>
-          </div>
-        </div>
-      </section>
+export default async function LabHomePage() {
+    const [openCases, designerCount, completedCases, openCaseList, designers] = await Promise.all([
+        prisma.labCase.count({ where: { status: { in: ["OPEN", "QUOTED"] } } }),
+        prisma.designerProfile.count(),
+        prisma.labCase.count({ where: { status: "COMPLETED" } }),
+        prisma.labCase.findMany({
+            where: { status: { in: ["OPEN", "QUOTED"] } },
+            orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+            take: 3,
+            include: {
+                customer: { select: { name: true, role: true } },
+                assignedDesigner: { select: { id: true, user: { select: { name: true } } } },
+                _count: { select: { files: true, offers: true, revisions: true } },
+            },
+        }),
+        prisma.designerProfile.findMany({
+            orderBy: [{ completedCases: "desc" }, { createdAt: "desc" }],
+            take: 3,
+            include: {
+                user: { select: { id: true, name: true, image: true } },
+                services: { where: { isActive: true } },
+            },
+        }),
+    ])
 
-      {/* Open cases preview */}
-      <section className="py-8 bg-gray-50/60 border-y border-gray-100">
-        <div className="container mx-auto px-4 md:px-6 max-w-6xl">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Ανοιχτές εργασίες τώρα</h2>
-            <Button variant="ghost" size="sm" asChild><Link href="/lab/cases">Όλες →</Link></Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {MOCK_CASES.slice(0, 3).map((c) => <CaseCard key={c.id} c={c} />)}
-          </div>
-        </div>
-      </section>
+    return (
+        <div className="pb-20">
+            {/* Hero */}
+            <section className="relative overflow-hidden bg-gradient-to-b from-primary-50/70 via-white to-white pt-16 pb-12">
+                <div className="container mx-auto px-4 md:px-6">
+                    <div className="max-w-3xl">
+                        <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-700 bg-primary-50 border border-primary-200 rounded-full px-3 py-1">
+                            <Sparkles className="h-3.5 w-3.5" /> Dentora Lab · CAD marketplace
+                        </span>
+                        <h1 className="mt-4 text-3xl md:text-5xl font-bold text-gray-900 leading-tight">
+                            Στείλε τη σάρωση, πάρε το σχέδιο
+                        </h1>
+                        <p className="mt-4 text-gray-600 text-lg">
+                            Οδοντίατρες και οδοντοτεχνικά εργαστήρια αναθέτουν εργασίες CAD σε εξειδικευμένους
+                            designers, με προσφορές, χρόνο παράδοσης και ασφαλή πληρωμή — όλα σε ένα σημείο.
+                        </p>
+                        <div className="mt-7 flex flex-wrap gap-3">
+                            <Button size="lg" asChild>
+                                <Link href="/lab/new">
+                                    Δημιούργησε εργασία
+                                    <ArrowRight className="h-4 w-4 ml-2" />
+                                </Link>
+                            </Button>
+                            <Button size="lg" variant="outline" asChild>
+                                <Link href="/lab/designers">Δες CAD designers</Link>
+                            </Button>
+                            <Button size="lg" variant="ghost" asChild>
+                                <Link href="/lab/register">Γίνε CAD designer</Link>
+                            </Button>
+                        </div>
+                    </div>
 
-      {/* Labs preview */}
-      <section className="py-12">
-        <div className="container mx-auto px-4 md:px-6 max-w-6xl">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <BadgeCheck className="h-5 w-5 text-green-600" /> Verified εργαστήρια
-            </h2>
-            <Button variant="ghost" size="sm" asChild><Link href="/lab/labs">Όλα →</Link></Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {MOCK_LABS.slice(0, 3).map((l) => <LabCard key={l.id} lab={l} />)}
-          </div>
-          <p className="text-xs text-gray-400 mt-6 text-center">
-            Demo με ψεύτικα δεδομένα — δεν γίνονται χρεώσεις, uploads ή αποστολές. Το “Dentora Smile Lab” εμφανίζεται πάντα πρώτο ως δικό σου lab.
-          </p>
+                    <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                            { label: "Ανοιχτές εργασίες", value: String(openCases) },
+                            { label: "CAD designers", value: String(designerCount) },
+                            { label: "Ολοκληρωμένες εργασίες", value: String(completedCases) },
+                            { label: "Προμήθεια πλατφόρμας", value: `${LAB_PLATFORM_FEE_RATE}%` },
+                        ].map((stat) => (
+                            <div key={stat.label} className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm">
+                                <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
+                                <div className="text-xs text-gray-500 mt-1">{stat.label}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* How it works */}
+            <section className="container mx-auto px-4 md:px-6 py-14">
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Πώς λειτουργεί</h2>
+                <p className="text-gray-600 mt-2 max-w-2xl">
+                    Από τη σάρωση STL μέχρι την πληρωμή του designer, χωρίς ενδιάμεσους.
+                </p>
+
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                    {[
+                        {
+                            icon: FileUp,
+                            title: "1. Ανεβάζεις την εργασία",
+                            text: "STL, φωτογραφίες, ακτινογραφίες και οδηγίες σχεδιασμού. Ορίζεις υλικό, απόχρωση, τεμάχια και deadline.",
+                        },
+                        {
+                            icon: MessagesSquare,
+                            title: "2. Λαμβάνεις προσφορές",
+                            text: "Οι designers που βλέπουν την εργασία σου στέλνουν τιμή και χρόνο παράδοσης. Επιλέγεις ποιον θέλεις.",
+                        },
+                        {
+                            icon: CreditCard,
+                            title: "3. Πληρώνεις με ασφάλεια",
+                            text: `Τα χρήματα κρατούνται σε escrow από τη Dentora (προμήθεια ${LAB_PLATFORM_FEE_RATE}%) και αποδεσμεύονται στον designer μετά την έγκρισή σου.`,
+                        },
+                        {
+                            icon: PackageCheck,
+                            title: "4. Εγκρίνεις & πληρώνεται",
+                            text: "Ο designer ανεβάζει τα ολοκληρωμένα αρχεία. Ζητάς διορθώσεις αν χρειάζεται και επιβεβαιώνεις την παράδοση.",
+                        },
+                    ].map((step) => {
+                        const Icon = step.icon
+                        return (
+                            <Card key={step.title} className="h-full">
+                                <CardContent className="p-6 space-y-3">
+                                    <div className="h-10 w-10 rounded-xl bg-primary-50 text-primary-700 flex items-center justify-center">
+                                        <Icon className="h-5 w-5" />
+                                    </div>
+                                    <h3 className="font-bold text-gray-900">{step.title}</h3>
+                                    <p className="text-sm text-gray-600">{step.text}</p>
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
+                </div>
+            </section>
+
+            {/* Open cases */}
+            <section className="container mx-auto px-4 md:px-6 pb-14">
+                <div className="flex items-end justify-between gap-4 mb-6">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Ανοιχτές εργασίες</h2>
+                        <p className="text-gray-600 text-sm mt-1">Διάλεξε designer για την επόμενη σου εργασία.</p>
+                    </div>
+                    <Button variant="outline" asChild>
+                        <Link href="/lab/cases">Όλες οι εργασίες</Link>
+                    </Button>
+                </div>
+
+                {openCaseList.length === 0 ? (
+                    <Card>
+                        <CardContent className="p-8 text-center space-y-3">
+                            <p className="text-gray-600">Δεν υπάρχουν ακόμα ανοιχτές εργασίες.</p>
+                            <Button asChild>
+                                <Link href="/lab/new">Δημιούργησε την πρώτη εργασία</Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {openCaseList.map((c) => (
+                            <CaseCard key={c.id} c={c} />
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {/* Designers */}
+            <section className="container mx-auto px-4 md:px-6 pb-16">
+                <div className="flex items-end justify-between gap-4 mb-6">
+                    <div>
+                        <h2 className="text-2xl font-bold text-gray-900">CAD designers</h2>
+                        <p className="text-gray-600 text-sm mt-1">
+                            Δες υπηρεσίες, τιμές και χρόνους παράδοσης πριν δημιουργήσεις εργασία.
+                        </p>
+                    </div>
+                    <Button variant="outline" asChild>
+                        <Link href="/lab/designers">Όλοι οι designers</Link>
+                    </Button>
+                </div>
+
+                {designers.length === 0 ? (
+                    <Card>
+                        <CardContent className="p-8 text-center space-y-3">
+                            <p className="text-gray-600">
+                                Δεν έχει εγγραφεί ακόμα CAD designer. Γίνε ο πρώτος!
+                            </p>
+                            <Button asChild>
+                                <Link href="/lab/register">Εγγραφή designer</Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {designers.map((designer) => (
+                            <DesignerCard key={designer.id} designer={designer} />
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {/* Trust */}
+            <section className="bg-gray-50 border-t border-gray-200 py-14">
+                <div className="container mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[
+                        {
+                            icon: ShieldCheck,
+                            title: "Τα χρήματα προστατεύονται",
+                            text: "Η πληρωμή κρατιέται στην Dentora μέχρι να εγκρίνεις τα αρχεία. Ο designer πληρώνεται μετά.",
+                        },
+                        {
+                            icon: BadgeCheck,
+                            title: "Επαληθευμένα προφίλ",
+                            text: "Κάθε designer έχει δημόσιο προφίλ με υπηρεσίες, τιμές, χρόνους παράδοσης και ιστορικό.",
+                        },
+                        {
+                            icon: Users,
+                            title: "Οδοντίατρες & εργαστήρια",
+                            text: "Δύο τύποι πελατών, ίδιο workflow: δημιουργία εργασίας, προσφορές, ανάθεση, παράδοση.",
+                        },
+                    ].map((item) => {
+                        const Icon = item.icon
+                        return (
+                            <div key={item.title} className="flex gap-4">
+                                <div className="h-10 w-10 shrink-0 rounded-xl bg-white border border-gray-200 text-primary-600 flex items-center justify-center">
+                                    <Icon className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-gray-900">{item.title}</h3>
+                                    <p className="text-sm text-gray-600 mt-1">{item.text}</p>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            </section>
+
+            <section className="container mx-auto px-4 md:px-6 py-12">
+                <div className="rounded-3xl bg-primary-600 text-white p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                    <div>
+                        <h2 className="text-2xl font-bold">Έτοιμος για την πρώτη σου εργασία CAD;</h2>
+                        <p className="text-primary-50 mt-2 max-w-xl">
+                            Ανέβασε τη σάρωση, διάλεξε designer και πλήρωσε μόνο όταν εγκρίνεις το αποτέλεσμα.
+                            Χωρίς κρυφές χρεώσεις — προμήθεια πλατφόρμας {LAB_PLATFORM_FEE_RATE}%.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                        <Button size="lg" variant="secondary" asChild>
+                            <Link href="/lab/new">Νέα εργασία</Link>
+                        </Button>
+                        <Button size="lg" variant="outline" className="bg-transparent border-white/40 text-white hover:bg-white/10" asChild>
+                            <Link href="/lab/register">Εγγραφή</Link>
+                        </Button>
+                    </div>
+                </div>
+            </section>
         </div>
-      </section>
-      <Footer />
-    </main>
-  );
+    )
 }

@@ -16,11 +16,274 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  role          String    @default("PATIENT") // PATIENT, DENTIST, ADMIN
+  role          String    @default("PATIENT") // PATIENT, DENTIST, LAB, DESIGNER, ADMIN
   accounts      Account[]
   sessions      Session[]
   dentistProfile DentistProfile?
   bookings      Booking[]
+  designerProfile DesignerProfile?
+  labProfile      LabProfile?
+  labCases        LabCase[]      @relation("CaseCustomer")
+  uploadedFiles   LabCaseFile[]
+  requestedRevisions CaseRevision[]
+  consents        DocumentConsent[]
+  verificationRequests VerificationRequest[]
+  deletionRequests DataDeletionRequest[]
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret String?
+  twoFactorRecoveryCodes String?
+}
+
+// ============================================================
+// LAB COMPLIANCE / SECURITY (GDPR, audit trail, verification)
+// ============================================================
+
+model LegalDocument {
+  id          String   @id @default(cuid())
+  key         String   // TERMS | DPA | PRIVACY
+  title       String
+  version     String
+  body        String
+  contentHash String
+  effectiveAt DateTime @default(now())
+  isRequired  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@unique([key, version])
+}
+
+model DocumentConsent {
+  id              String   @id @default(cuid())
+  evidenceId      String   @unique
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentKey     String
+  documentVersion String
+  documentHash    String
+  scope           String   @default("LAB")
+  acceptedAt      DateTime @default(now())
+  ipAddress       String?
+  userAgent       String?
+
+  @@index([userId, documentKey])
+}
+
+model VerificationRequest {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectType    String   // DENTIST | DESIGNER
+  status         String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  documentName   String?
+  documentFileId String?
+  notes          String?
+  reviewNotes    String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+}
+
+model FileAccessLog {
+  id        String   @id @default(cuid())
+  fileId    String?
+  caseId    String?
+  userId    String?
+  action    String   // UPLOAD | DOWNLOAD | VIEW | DELETE | DENIED
+  outcome   String   @default("ALLOWED") // ALLOWED | DENIED
+  ipAddress String?
+  userAgent String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([fileId])
+  @@index([caseId])
+  @@index([createdAt])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  entity      String
+  entityId    String?
+  metadata    String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model SecurityIncident {
+  id            String    @id @default(cuid())
+  reference     String    @unique
+  title         String
+  severity      String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status        String    @default("REPORTED") // REPORTED | TRIAGED | INVESTIGATING | RESOLVED | DISCLOSED
+  description   String
+  contactEmail  String?
+  affectedData  String?
+  detectedAt    DateTime?
+  reportedAt    DateTime  @default(now())
+  resolvedAt    DateTime?
+  publicSummary String?
+  createdAt     DateTime  @default(now())
+}
+
+model DataDeletionRequest {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope       String    @default("LAB_DATA") // LAB_DATA | ALL
+  status      String    @default("REQUESTED") // REQUESTED | IN_PROGRESS | COMPLETED | REJECTED
+  reason      String?
+  requestedAt DateTime  @default(now())
+  dueAt       DateTime?
+  completedAt DateTime?
+  report      String?
+  createdAt   DateTime  @default(now())
+}
+
+// ============================================================
+// LAB / CAD MARKETPLACE (B2B)
+// ============================================================
+
+model DesignerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline        String   @default("CAD Designer")
+  bio             String?
+  city            String?
+  country         String   @default("GR")
+  avatarUrl       String?
+  isVerified      Boolean  @default(false)
+  stripeAccountId String?
+  isStripeEnabled Boolean  @default(false)
+  rating          Float    @default(0)
+  reviewCount     Int      @default(0)
+  completedCases  Int      @default(0)
+  avgLeadTimeDays Int      @default(3)
+  earnings        Float    @default(0)
+  services        DesignerService[]
+  offers          LabOffer[]
+  assignedCases   LabCase[] @relation("AssignedDesigner")
+  revisions       CaseRevision[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model DesignerService {
+  id                String   @id @default(cuid())
+  designerProfileId String
+  designerProfile   DesignerProfile @relation(fields: [designerProfileId], references: [id], onDelete: Cascade)
+  name              String
+  description       String?
+  price             Int      // Price per case in EUR
+  minUnits          Int      @default(1)
+  leadTimeDays      Int      @default(3)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+}
+
+model LabProfile {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  labName    String
+  city       String?
+  about      String?
+  equipment  String[] @default([])
+  materials  String[] @default([])
+  isVerified Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model LabCase {
+  id                 String   @id @default(cuid())
+  code               String   @unique
+  title              String
+  type               String
+  material           String
+  shade              String?
+  units              Int      @default(1)
+  description        String
+  deadline           DateTime?
+  priority           String   @default("STANDARD") // STANDARD, EXPRESS
+  status             String   @default("OPEN") // OPEN, QUOTED, ASSIGNED, IN_PRODUCTION, DELIVERED, COMPLETED, CANCELLED
+  customerId         String
+  customer           User     @relation("CaseCustomer", fields: [customerId], references: [id])
+  customerType       String   @default("DENTIST") // DENTIST, LAB
+  assignedDesignerId String?
+  assignedDesigner   DesignerProfile? @relation("AssignedDesigner", fields: [assignedDesignerId], references: [id])
+  agreedPrice        Int?
+  platformFee        Float?
+  designerPayout     Float?
+  paymentStatus      String   @default("UNPAID") // UNPAID, HELD, RELEASED, REFUNDED, FAILED
+  stripePaymentIntentId String? @unique
+  stripeTransferId   String?
+  files              LabCaseFile[]
+  offers             LabOffer[]
+  revisions          CaseRevision[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([status])
+  @@index([customerId])
+  @@index([assignedDesignerId])
+}
+
+model LabCaseFile {
+  id             String   @id @default(cuid())
+  caseId         String
+  case           LabCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  kind           String   // INPUT_STL, INPUT_INSTRUCTION, OUTPUT_STL, OUTPUT_PDF, PHOTO, XRAY
+  fileName       String
+  fileSize       Int
+  mimeType       String?
+  storagePath    String
+  storageProvider String  @default("blob") // blob | local
+  uploadedById   String
+  uploadedBy     User     @relation(fields: [uploadedById], references: [id])
+  uploaderRole   String   @default("CUSTOMER") // CUSTOMER, DESIGNER
+  createdAt      DateTime @default(now())
+
+  @@index([caseId])
+}
+
+model LabOffer {
+  id                String   @id @default(cuid())
+  caseId            String
+  case              LabCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  designerProfileId String
+  designerProfile   DesignerProfile @relation(fields: [designerProfileId], references: [id], onDelete: Cascade)
+  price             Int
+  leadTimeDays      Int      @default(3)
+  message           String?
+  status            String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  createdAt         DateTime @default(now())
+
+  @@unique([caseId, designerProfileId])
+}
+
+model CaseRevision {
+  id                String   @id @default(cuid())
+  caseId            String
+  case              LabCase  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  designerProfileId String
+  designerProfile   DesignerProfile @relation(fields: [designerProfileId], references: [id])
+  requestedById     String
+  requestedBy       User     @relation(fields: [requestedById], references: [id])
+  message           String
+  status            String   @default("REQUESTED") // REQUESTED, DELIVERED, RESOLVED
+  createdAt         DateTime @default(now())
+  resolvedAt        DateTime?
+
+  @@index([caseId])
 }
 
 model DentistProfile {
