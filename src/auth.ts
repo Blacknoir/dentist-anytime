@@ -67,6 +67,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             name: "Admin Login",
             credentials: {
                 username: { label: "Username", type: "text" },
+                email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" }
             },
             async authorize(credentials) {
@@ -85,6 +86,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     }
                     return admin
                 }
+
+                // Development-only quick login so the lab can be tested without
+                // configuring an OAuth redirect. Disabled in production builds.
+                if (process.env.NODE_ENV !== "production" && credentials?.email) {
+                    const devPassword = process.env.LAB_DEV_PASSWORD || "dentora-dev"
+                    const email = String(credentials.email).trim().toLowerCase()
+                    if (credentials?.password === devPassword) {
+                        const user = await prisma.user.findUnique({ where: { email } })
+                        if (user) return user
+                    }
+                }
+
                 return null
             }
         })
@@ -124,7 +137,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     token.id = user.id
                 }
             }
+            // Keep the rest of the token (name, email, picture) so the session
+            // exposes them; only role/id are refreshed from the database.
             return {
+                ...token,
                 id: token.id,
                 role: token.role
             } as any

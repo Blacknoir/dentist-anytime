@@ -23,3 +23,15 @@ export async function signInWithFacebookLab(role: LabRole) {
     const redirectTo = role === "DESIGNER" ? "/lab/designer" : "/lab/cases"
     await authSignIn("facebook", { redirectTo })
 }
+
+/**
+ * Development-only quick sign-in with an existing account (no OAuth redirect).
+ * The credentials provider rejects this outside of development.
+ */
+export async function signInWithLabAccount(email: string, password: string) {
+    await authSignIn("credentials", {
+        email: email.trim().toLowerCase(),
+        password,
+        redirectTo: "/lab/cases"
+    })
+}

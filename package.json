@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "seed:lab": "tsx prisma/seed-lab.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
