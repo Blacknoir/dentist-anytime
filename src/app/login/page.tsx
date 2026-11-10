@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowRight, ArrowLeft } from "lucide-react"
+import { ArrowRight, ArrowLeft, KeyRound, RefreshCcw, Stethoscope } from "lucide-react"
 import { Logo } from "@/components/shared/logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,25 @@ import * as React from "react"
 export default function LoginPage() {
     const { t } = useLanguage()
     const [role, setRole] = React.useState<"PATIENT" | "DENTIST">("PATIENT")
+    const [googleAvailable, setGoogleAvailable] = React.useState(true)
+
+    // Detects environments where the OAuth provider is not configured so the
+    // visitor does not end up on a "server configuration" error page.
+    React.useEffect(() => {
+        let active = true
+        fetch("/api/auth/providers")
+            .then((response) => (response.ok ? response.json() : null))
+            .then((providers) => {
+                if (!active) return
+                if (!providers || !providers.google) setGoogleAvailable(false)
+            })
+            .catch(() => {
+                if (active) setGoogleAvailable(false)
+            })
+        return () => {
+            active = false
+        }
+    }, [])
 
     return (
         <div className="min-h-screen grid lg:grid-cols-2 relative">
@@ -62,14 +81,21 @@ export default function LoginPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
-                        <form action={() => signInWithGoogle(role)}>
-                            <Button variant="outline" className="w-full h-12 text-base font-medium text-gray-800 border-gray-300" type="submit">
-                                <svg className="mr-3 h-5 w-5" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
-                                    <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
-                                </svg>
-                                {t('pages.login.continue_google')}
-                            </Button>
-                        </form>
+                        {googleAvailable ? (
+                            <form action={() => signInWithGoogle(role)}>
+                                <Button variant="outline" className="w-full h-12 text-base font-medium text-gray-800 border-gray-300" type="submit">
+                                    <svg className="mr-3 h-5 w-5" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                                        <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+                                    </svg>
+                                    {t('pages.login.continue_google')}
+                                </Button>
+                            </form>
+                        ) : (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                Η σύνδεση με Google δεν είναι διαθέσιμη σε αυτό το περιβάλλον. Χρησιμοποίησε τη
+                                σύνδεση διαχειριστή ή επανέλαβε αργότερα.
+                            </div>
+                        )}
                         <form action={() => signInWithFacebook(role)} className="hidden">
                             <Button variant="outline" className="w-full h-12 text-base font-medium" type="submit">
                                 <svg className="mr-3 h-5 w-5 fill-[#1877F2]" viewBox="0 0 24 24" aria-hidden="true">
@@ -84,6 +110,18 @@ export default function LoginPage() {
                         <span className="text-gray-500">{t('pages.login.no_account')} </span>
                         <Link href="/register" className="font-medium text-primary-600 hover:text-primary-500">
                             {t('pages.login.sign_up')}
+                        </Link>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-4 border-t border-gray-100 pt-6 text-xs text-gray-500">
+                        <Link href="/admin/login" className="hover:text-primary-600 inline-flex items-center gap-1">
+                            <KeyRound className="h-3 w-3" /> Είσαι διαχειριστής; Σύνδεση εδώ
+                        </Link>
+                        <Link href="/lab/login" className="hover:text-primary-600 inline-flex items-center gap-1">
+                            <Stethoscope className="h-3 w-3" /> Dentora Lab (CAD)
+                        </Link>
+                        <Link href="/api/auth/reset" className="hover:text-primary-600 inline-flex items-center gap-1">
+                            <RefreshCcw className="h-3 w-3" /> Καθαρισμός cookies
                         </Link>
                     </div>
                 </div>

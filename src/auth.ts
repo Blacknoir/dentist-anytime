@@ -14,6 +14,44 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "12345"
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@dentistanytime.com"
 
+const MAX_REDIRECT_LENGTH = 300
+
+/**
+ * Normalises a redirect target: same origin only, no nested `callbackUrl`
+ * parameters and a hard length limit. This keeps the auth cookies small and
+ * prevents the "494 REQUEST_HEADER_TOO_LARGE" errors.
+ */
+export function sanitizeRedirectUrl(url: string, baseUrl: string) {
+    let target = url
+
+    try {
+        const parsed = new URL(url, baseUrl)
+        const base = new URL(baseUrl)
+        if (parsed.origin !== base.origin) {
+            return base.origin
+        }
+        target = parsed.pathname + parsed.search
+    } catch {
+        target = url.startsWith("/") ? url : baseUrl
+    }
+
+    try {
+        const parsed = new URL(target, baseUrl)
+        if (parsed.searchParams.has("callbackUrl")) {
+            parsed.searchParams.delete("callbackUrl")
+        }
+        target = parsed.pathname + (parsed.search ? parsed.search : "")
+    } catch {
+        // keep the raw value
+    }
+
+    if (target.length > MAX_REDIRECT_LENGTH) {
+        target = target.slice(0, MAX_REDIRECT_LENGTH)
+    }
+
+    return target
+}
+
 // Creates the profile that matches the selected role (dentist / lab / CAD designer).
 async function ensureRoleProfile(userId: string, role: string) {
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, publicCode: true } })
@@ -118,11 +156,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     ],
     pages: {
         signIn: "/login",
+        error: "/auth/error",
     },
     session: {
         strategy: "jwt",
         maxAge: 30 * 24 * 60 * 60, // 30 days
     },
+    // Uses the incoming host so the OAuth redirect URI always matches the
+    // domain the visitor actually uses (dentora.gr / www.dentora.gr / localhost).
+    trustHost: true,
     cookies: {
         sessionToken: {
             name: `next-auth.session-token`,
@@ -135,6 +177,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         },
     },
     callbacks: {
+        /**
+         * Keeps the redirect target small and same-origin. Without this the
+         * `callbackUrl` cookie can grow on every redirect until the browser
+         * sends oversized headers (Vercel answers with 494).
+         */
+        async redirect({ url, baseUrl }) {
+            return sanitizeRedirectUrl(url, baseUrl)
+        },
         async jwt({ token, user }) {
             if (user) {
                 // Fetch the latest user data from DB to ensure role is correct (especially after first registration)
@@ -190,24 +240,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
                 // Clear the cookie
                 cookieStore.delete("pending_role")
-            }
-            return true
-        },
-        authorized({ auth, request: { nextUrl } }) {
-            const isLoggedIn = !!auth?.user
-            const isOnBooking = nextUrl.pathname.startsWith("/booking")
-            const isOnDashboard = nextUrl.pathname.startsWith("/dashboard")
-            const isOnAdmin = nextUrl.pathname.startsWith("/admin")
-
-            if (isOnAdmin) {
-                if (isLoggedIn && (auth.user as any).role === "ADMIN") return true
-                if (nextUrl.pathname === "/admin/login") return true
-                return false
-            }
-
-            if (isOnBooking || isOnDashboard) {
-                if (isLoggedIn) return true
-                return false // Redirect to login
             }
             return true
         },
