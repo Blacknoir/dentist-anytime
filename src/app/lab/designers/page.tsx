@@ -30,7 +30,7 @@ export default async function LabDesignersPage({
 
     if (query) {
         where.OR = [
-            { user: { name: { contains: query, mode: "insensitive" } } },
+            { user: { publicCode: { contains: query, mode: "insensitive" } } },
             { headline: { contains: query, mode: "insensitive" } },
             { bio: { contains: query, mode: "insensitive" } },
             { city: { contains: query, mode: "insensitive" } },
@@ -63,7 +63,8 @@ export default async function LabDesignersPage({
         where,
         orderBy: [orderBy as any, { createdAt: "desc" }],
         include: {
-            user: { select: { id: true, name: true, image: true } },
+            // The real name never leaves the platform: only the public code.
+            user: { select: { id: true, publicCode: true, image: true } },
             services: { where: { isActive: true } },
         },
     })
@@ -86,7 +87,7 @@ export default async function LabDesignersPage({
                 <form method="get" className="mt-6 flex flex-wrap items-end gap-3">
                     <div className="relative flex-1 min-w-[220px] max-w-sm">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                        <Input name="q" defaultValue={query} placeholder="Όνομα, ειδικότητα, πόλη…" className="pl-9" />
+                        <Input name="q" defaultValue={query} placeholder="Κωδικός, ειδικότητα, πόλη…" className="pl-9" />
                     </div>
 
                     <select

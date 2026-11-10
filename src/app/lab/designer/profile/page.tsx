@@ -21,6 +21,13 @@ export default async function DesignerProfilePage() {
                 <p className="text-gray-600 mt-1">
                     Αυτό το προφίλ βλέπουν οι πελάτες στο Dentora Lab.
                 </p>
+                <p className="text-xs text-gray-500 mt-2">
+                    Ο δημόσιος κωδικός σου:{" "}
+                    <strong className="text-gray-900">
+                        {actor.role === "LAB" ? "Εργαστήριο" : "CAD Designer"} #{actor.publicCode}
+                    </strong>{" "}
+                    — τα στοιχεία επικοινωνίας σου παραμένουν κρυφά από τους πελάτες.
+                </p>
 
                 <DesignerProfileForm
                     designer={

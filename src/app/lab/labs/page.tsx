@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
 export default async function LabLabsPage() {
     const labs = await prisma.labProfile.findMany({
         orderBy: [{ isVerified: "desc" }, { createdAt: "desc" }],
-        include: { user: { select: { id: true, name: true } } },
+        include: { user: { select: { id: true, publicCode: true } } },
     })
 
     return (
@@ -48,7 +48,9 @@ export default async function LabLabsPage() {
                                 <Card key={lab.id} className="h-full">
                                     <CardContent className="p-5 space-y-3 h-full flex flex-col">
                                         <div className="flex items-start justify-between gap-2">
-                                            <h3 className="font-bold text-gray-900">{lab.labName}</h3>
+                                            <h3 className="font-bold text-gray-900">
+                                                Εργαστήριο #{lab.user?.publicCode}
+                                            </h3>
                                             {lab.isVerified && (
                                                 <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
                                                     Verified

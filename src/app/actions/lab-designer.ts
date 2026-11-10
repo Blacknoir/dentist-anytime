@@ -128,7 +128,7 @@ export async function getDesignerDashboard() {
             where: { assignedDesignerId: designerProfileId },
             orderBy: { updatedAt: "desc" },
             include: {
-                customer: { select: { name: true, role: true } },
+                customer: { select: { id: true, publicCode: true, role: true } },
                 files: { orderBy: { createdAt: "asc" } },
                 revisions: { orderBy: { createdAt: "desc" } },
             },
@@ -148,7 +148,7 @@ export async function getDesignerDashboard() {
                         status: true,
                         priority: true,
                         deadline: true,
-                        customer: { select: { name: true, role: true } },
+                        customer: { select: { id: true, publicCode: true, role: true } },
                     },
                 },
             },
@@ -177,6 +177,7 @@ export async function getDesignerDashboard() {
                 rating: true,
                 stripeAccountId: true,
                 isStripeEnabled: true,
+                user: { select: { publicCode: true } },
             },
         }),
     ])

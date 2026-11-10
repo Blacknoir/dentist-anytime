@@ -11,6 +11,8 @@ import {
     INPUT_FILE_KINDS,
     LAB_PLATFORM_FEE_RATE,
     OUTPUT_FILE_KINDS,
+    publicCodeFor,
+    redactContactDetails,
     type LabFileKind,
 } from "@/lib/lab"
 import {
@@ -25,6 +27,7 @@ export type LabActor = {
     role: string
     name: string
     email: string
+    publicCode: string
     designerProfileId: string | null
     isCustomer: boolean
     isDesigner: boolean
@@ -42,6 +45,7 @@ export async function getLabActor(): Promise<LabActor | null> {
             role: true,
             name: true,
             email: true,
+            publicCode: true,
             designerProfile: { select: { id: true } },
         },
     })
@@ -53,6 +57,7 @@ export async function getLabActor(): Promise<LabActor | null> {
         role,
         name: user.name || "Χρήστης",
         email: user.email || "",
+        publicCode: publicCodeFor(user),
         designerProfileId: user.designerProfile?.id ?? null,
         isCustomer: role === "DENTIST" || role === "LAB",
         isDesigner: role === "DESIGNER" && !!user.designerProfile,
@@ -208,8 +213,9 @@ export async function getLabCases(filter?: {
         where,
         orderBy: { createdAt: "desc" },
         include: {
-            customer: { select: { name: true, role: true } },
-            assignedDesigner: { select: { id: true, user: { select: { name: true } } } },
+            // Only the anonymous code travels to the browser — never a real name.
+            customer: { select: { id: true, publicCode: true, role: true } },
+            assignedDesigner: { select: { id: true, user: { select: { publicCode: true } } } },
             _count: { select: { files: true, offers: true, revisions: true } },
         },
         take: 100,
@@ -220,10 +226,12 @@ export async function getLabCaseById(id: string) {
     return prisma.labCase.findUnique({
         where: { id },
         include: {
-            customer: { select: { id: true, name: true, role: true } },
+            // The customer name is only rendered for the owner and the admins.
+            customer: { select: { id: true, publicCode: true, role: true, name: true } },
             assignedDesigner: {
                 include: {
-                    user: { select: { id: true, name: true, email: true, image: true } },
+                    // The designer identity stays anonymous for everyone else.
+                    user: { select: { id: true, publicCode: true, image: true } },
                     services: { where: { isActive: true } },
                 },
             },
@@ -232,7 +240,7 @@ export async function getLabCaseById(id: string) {
                 orderBy: { price: "asc" },
                 include: {
                     designerProfile: {
-                        include: { user: { select: { id: true, name: true, image: true } } },
+                        include: { user: { select: { id: true, publicCode: true, image: true } } },
                     },
                 },
             },
@@ -276,7 +284,13 @@ export async function getLabCaseForViewer(id: string) {
     const isAssignedDesigner = !!actor?.designerProfileId && target.assignedDesignerId === actor.designerProfileId
 
     // Public board visitors only get the summary — no files, no customer identity.
-    if (!allowed) return { ...target, files: [], customer: { id: "", name: "Εμπισκευμένος", role: "" } }
+    if (!allowed) {
+        return {
+            ...target,
+            files: [],
+            customer: { id: "", publicCode: "", role: "", name: "Εμπισκευμένος" },
+        }
+    }
     // Files (STL scans, deliverables) stay private until the work is assigned.
     if (!isOwner && !isAssignedDesigner && !actor?.isAdmin) {
         return { ...target, files: [] }
@@ -311,6 +325,9 @@ export async function submitLabOffer(input: {
     const price = Math.round(Number(input.price))
     if (!Number.isFinite(price) || price < 1) throw new Error("Μη έγκυρη τιμή.")
 
+    // Contact details are removed so that the deal stays on the platform.
+    const message = input.message ? redactContactDetails(input.message).trim() || null : null
+
     await prisma.labOffer.upsert({
         where: {
             caseId_designerProfileId: {
@@ -321,7 +338,7 @@ export async function submitLabOffer(input: {
         update: {
             price,
             leadTimeDays: Math.max(1, Math.round(Number(input.leadTimeDays) || 3)),
-            message: input.message || null,
+            message,
             status: "PENDING",
         },
         create: {
@@ -329,7 +346,7 @@ export async function submitLabOffer(input: {
             designerProfileId: actor.designerProfileId,
             price,
             leadTimeDays: Math.max(1, Math.round(Number(input.leadTimeDays) || 3)),
-            message: input.message || null,
+            message,
         },
     })
 
@@ -517,7 +534,7 @@ export async function requestRevision(caseId: string, message: string) {
             caseId,
             designerProfileId: target.assignedDesignerId,
             requestedById: actor.userId,
-            message: message.trim(),
+            message: redactContactDetails(message).trim(),
             status: "REQUESTED",
         },
     })

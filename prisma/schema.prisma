@@ -17,6 +17,7 @@ model User {
   emailVerified DateTime?
   image         String?
   role          String    @default("PATIENT") // PATIENT, DENTIST, LAB, DESIGNER, ADMIN
+  publicCode    String?   @unique // anonymous marketplace code (DN-1234, LB-1234, CD-1234)
   accounts      Account[]
   sessions      Session[]
   dentistProfile DentistProfile?

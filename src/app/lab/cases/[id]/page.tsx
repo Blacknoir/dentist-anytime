@@ -30,7 +30,7 @@ import {
     StartProductionButton,
 } from "@/components/lab/case-panel"
 import { CasePaymentPanel } from "@/components/lab/case-payment"
-import { euros, formatDate, formatDateTime, LAB_PLATFORM_FEE_RATE } from "@/lib/lab"
+import { euros, formatDate, formatDateTime, LAB_PLATFORM_FEE_RATE, partyLabel } from "@/lib/lab"
 
 export const dynamic = "force-dynamic"
 
@@ -50,8 +50,12 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
     const visibleFiles = isOwner || isAssigned || isAdmin ? target.files : []
     // The owner sees every offer, a designer only their own.
     const visibleOffers = isOwner || isAdmin ? target.offers : myOffer ? [myOffer] : []
-    // The customer identity stays hidden from competing designers.
-    const customerName = isOwner || isAssigned || isAdmin ? target.customer.name : "Εμπισκευμένος"
+    // Counterparties only see an anonymous code — never a real name.
+    const customerLabel = isAdmin
+        ? target.customer.name || "Εμπισκευμένος"
+        : isOwner
+          ? actor?.name || "Εγώ"
+          : partyLabel(target.customer)
 
     const canOffer =
         !!actor?.isDesigner && !isOwner && ["OPEN", "QUOTED"].includes(target.status) && !isAssigned
@@ -84,7 +88,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                     )}
                 </div>
                 <p className="text-sm text-gray-500 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span>{customerName}</span>
+                    <span>{customerLabel}</span>
                     <span>Δημιουργήθηκε {formatDate(target.createdAt)}</span>
                     {target.deadline && (
                         <span className="inline-flex items-center gap-1">
@@ -122,7 +126,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                             <Users className="h-4 w-4 text-violet-600" />
                                             <span className="text-gray-600">Ανατέθηκε στον</span>
                                             <strong className="text-gray-900">
-                                                {target.assignedDesigner.user?.name || "CAD Designer"}
+                                                CAD Designer #{target.assignedDesigner.user?.publicCode}
                                             </strong>
                                         </span>
                                         <Link
@@ -184,7 +188,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                                     <div className="min-w-0">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <strong className="text-gray-900">
-                                                                {designer.user?.name || "CAD Designer"}
+                                                                CAD Designer #{designer.user?.publicCode}
                                                             </strong>
                                                             {designer.isVerified && (
                                                                 <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
@@ -285,7 +289,9 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                         ],
                                         [
                                             "Ανάθεση σε designer",
-                                            target.assignedDesigner?.user?.name || "εκκρεμεί",
+                                            target.assignedDesigner
+                                                ? `CAD Designer #${target.assignedDesigner.user?.publicCode}`
+                                                : "εκκρεμεί",
                                             !!target.assignedDesigner,
                                         ],
                                         [

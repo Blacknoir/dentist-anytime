@@ -81,6 +81,10 @@ export function OfferForm({ caseId, priceHint }: { caseId: string; priceHint?: n
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
             />
+            <p className="text-[11px] text-gray-500">
+                Μην γράψετε όνομα, email ή τηλέφωνο — αφαιρούνται αυτόματα. Οι συμφωνίες γίνονται μόνο
+                μέσω της πλατφόρμας.
+            </p>
             <Button
                 className="w-full"
                 disabled={pending || !price}

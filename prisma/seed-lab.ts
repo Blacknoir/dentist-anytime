@@ -114,12 +114,29 @@ const INSTRUCTION_TEXT = `ΟΔΗΓΙΕΣ ΠΑΡΑΓΩΓΗΣ - Μονοκόρων
 async function upsertUser(email: string, name: string, role: string) {
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
-        return prisma.user.update({
+        await prisma.user.update({
             where: { email },
-            data: { name, role },
+            data: { name, role, publicCode: existing.publicCode || (await nextPublicCode(role)) },
         })
+        return prisma.user.findUniqueOrThrow({ where: { email } })
     }
-    return prisma.user.create({ data: { email, name, role } })
+    return prisma.user.create({
+        data: { email, name, role, publicCode: await nextPublicCode(role) },
+    })
+}
+
+/** Generates the next free anonymous marketplace code for a role. */
+async function nextPublicCode(role: string) {
+    const prefix = role === "DENTIST" ? "DN" : role === "LAB" ? "LB" : role === "DESIGNER" ? "CD" : "PT"
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+        const code = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`
+        const existing = await prisma.user.findUnique({
+            where: { publicCode: code },
+            select: { id: true },
+        })
+        if (!existing) return code
+    }
+    return `${prefix}-${Date.now().toString().slice(-4)}`
 }
 
 async function ensureLegalDocuments() {

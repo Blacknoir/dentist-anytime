@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { prisma } from "@/lib/prisma"
 import { Stars } from "@/components/lab/lab-components"
-import { euros, initials } from "@/lib/lab"
+import { codeInitials, euros } from "@/lib/lab"
 
 export const dynamic = "force-dynamic"
 
@@ -15,7 +15,7 @@ export default async function DesignerProfilePage({ params }: { params: Promise<
     const designer = await prisma.designerProfile.findUnique({
         where: { id },
         include: {
-            user: { select: { id: true, name: true, image: true } },
+            user: { select: { id: true, publicCode: true, image: true } },
             services: { where: { isActive: true }, orderBy: { price: "asc" } },
         },
     })
@@ -32,12 +32,12 @@ export default async function DesignerProfilePage({ params }: { params: Promise<
                 <div className="mt-4 flex flex-wrap items-start justify-between gap-6">
                     <div className="flex items-start gap-4">
                         <div className="h-16 w-16 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center text-xl font-bold">
-                            {initials(designer.user?.name)}
+                            {codeInitials(designer.user?.publicCode)}
                         </div>
                         <div>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                                    {designer.user?.name || "CAD Designer"}
+                                    CAD Designer #{designer.user?.publicCode}
                                 </h1>
                                 {designer.isVerified && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">

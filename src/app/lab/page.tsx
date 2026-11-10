@@ -18,8 +18,8 @@ export default async function LabHomePage() {
             orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
             take: 3,
             include: {
-                customer: { select: { name: true, role: true } },
-                assignedDesigner: { select: { id: true, user: { select: { name: true } } } },
+                customer: { select: { id: true, publicCode: true, role: true } },
+                assignedDesigner: { select: { id: true, user: { select: { publicCode: true } } } },
                 _count: { select: { files: true, offers: true, revisions: true } },
             },
         }),
@@ -27,7 +27,7 @@ export default async function LabHomePage() {
             orderBy: [{ completedCases: "desc" }, { createdAt: "desc" }],
             take: 3,
             include: {
-                user: { select: { id: true, name: true, image: true } },
+                user: { select: { id: true, publicCode: true, image: true } },
                 services: { where: { isActive: true } },
             },
         }),

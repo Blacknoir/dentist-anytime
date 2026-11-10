@@ -4,11 +4,23 @@ import Facebook from "next-auth/providers/facebook"
 import Credentials from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
+import { assignPublicCode } from "@/lib/lab-public-code"
 
 import { cookies } from "next/headers"
 
+// Credentials of the platform admin. Easy to change (and later to replace with
+// Google Workspace / Gmail SSO) through the environment.
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin"
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "12345"
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@dentistanytime.com"
+
 // Creates the profile that matches the selected role (dentist / lab / CAD designer).
 async function ensureRoleProfile(userId: string, role: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, publicCode: true } })
+    if (!user?.publicCode) {
+        await assignPublicCode(userId, role)
+    }
+
     if (role === "DENTIST") {
         const profile = await prisma.dentistProfile.findUnique({ where: { userId } })
         if (!profile) {
@@ -29,11 +41,10 @@ async function ensureRoleProfile(userId: string, role: string) {
     if (role === "LAB") {
         const profile = await prisma.labProfile.findUnique({ where: { userId } })
         if (!profile) {
-            const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
             await prisma.labProfile.create({
                 data: {
                     userId,
-                    labName: user?.name ? `${user.name} Lab` : "Νέο οδοντοτεχνικό εργαστήριο",
+                    labName: "Νέο οδοντοτεχνικό εργαστήριο",
                 }
             })
         }
@@ -71,18 +82,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 password: { label: "Password", type: "password" }
             },
             async authorize(credentials) {
-                if (credentials?.username === "admin" && credentials?.password === "452996") {
+                if (credentials?.username === ADMIN_USERNAME && credentials?.password === ADMIN_PASSWORD) {
                     let admin = await prisma.user.findUnique({
-                        where: { email: "admin@dentistanytime.com" }
+                        where: { email: ADMIN_EMAIL }
                     })
                     if (!admin) {
                         admin = await prisma.user.create({
                             data: {
-                                email: "admin@dentistanytime.com",
+                                email: ADMIN_EMAIL,
                                 name: "Platform Admin",
                                 role: "ADMIN"
                             }
                         })
+                    }
+                    if (!admin.publicCode) {
+                        await assignPublicCode(admin.id, "ADMIN")
                     }
                     return admin
                 }
@@ -212,7 +226,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 if (["DENTIST", "LAB", "DESIGNER"].includes(pendingRole)) {
                     await ensureRoleProfile(user.id, pendingRole)
                 }
+                return
             }
-        }
+
+            // Every account gets an anonymous marketplace code.
+            const created = await prisma.user.findUnique({
+                where: { id: user.id },
+                select: { publicCode: true, role: true },
+            })
+            if (created && !created.publicCode && user.id) {
+                await assignPublicCode(user.id, created.role || "PATIENT")
+            }        }
     }
 })

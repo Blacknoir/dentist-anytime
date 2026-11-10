@@ -1,31 +1,95 @@
 // Shared types, constants and helpers for the Lab (CAD design) marketplace.
 // Only used inside /lab — the main booking site is untouched.
 
+import { createHash } from "crypto"
 import type { Prisma } from "@prisma/client"
 
 export const LAB_PLATFORM_FEE_RATE = 10 // % kept by the platform on every CAD job
 
+// ------------------------------------------------------------------ anonymity
+// The marketplace never exposes the real name of a party to its counterpart:
+// customers only see an anonymous code so that deals cannot be closed outside
+// the platform. The real identity stays available to the platform admins.
+
+export const PARTY_CODE_PREFIX: Record<string, string> = {
+    DENTIST: "DN",
+    LAB: "LB",
+    DESIGNER: "CD",
+    PATIENT: "PT",
+    ADMIN: "AD",
+}
+
+export const PARTY_ROLE_LABEL: Record<string, string> = {
+    DENTIST: "Οδοντίατρος",
+    LAB: "Εργαστήριο",
+    DESIGNER: "CAD Designer",
+    PATIENT: "Χρήστης",
+    ADMIN: "Διαχειριστής",
+}
+
+/** Deterministic fallback code when a row has none (never exposes a name). */
+export function derivePublicCode(id: string, role: string) {
+    const prefix = PARTY_CODE_PREFIX[role] ?? "US"
+    const hash = createHash("sha256").update(id).digest("hex").toUpperCase()
+    return `${prefix}-${hash.slice(0, 4)}`
+}
+
+export function publicCodeFor(user: {
+    id: string
+    role?: string | null
+    publicCode?: string | null
+}) {
+    return user.publicCode || derivePublicCode(user.id, user.role || "PATIENT")
+}
+
+/** "CAD Designer #CD-9134" — the label a counterpart sees. */
+export function partyLabel(user: { id: string; role?: string | null; publicCode?: string | null }) {
+    const role = user.role || "PATIENT"
+    const label = PARTY_ROLE_LABEL[role] ?? "Επαγγελματίας"
+    return `${label} #${publicCodeFor(user)}`
+}
+
+/** Two-letter avatar tag derived from the anonymous code (never from a name). */
+export function codeInitials(code?: string | null) {
+    if (!code) return "··"
+    return code.replace("-", "").slice(0, 2).toUpperCase()
+}
+
+/**
+ * Removes contact details from free-text messages so that parties cannot
+ * exchange phone numbers / emails and close a deal outside the platform.
+ */
+export function redactContactDetails(text: string) {
+    if (!text) return text
+    let output = text.replace(/[\w.+-]+@[\w-]+\.[\w.-]{2,}/g, "[email αποκρύφτηκε]")
+    output = output.replace(/(?:\+?\d[\d\s().\-/]{6,}\d)/g, (match) => {
+        const digits = match.replace(/\D/g, "")
+        return digits.length >= 9 ? "[τηλέφωνο αποκρύφτηκε]" : match
+    })
+    return output
+}
+
 export type LabCaseListItem = Prisma.LabCaseGetPayload<{
     include: {
-        customer: { select: { name: true; role: true } }
-        assignedDesigner: { select: { id: true; user: { select: { name: true } } } }
+        customer: { select: { id: true; publicCode: true; role: true } }
+        assignedDesigner: { select: { id: true; user: { select: { publicCode: true } } } }
         _count: { select: { files: true; offers: true; revisions: true } }
     }
 }>
 
 export type LabCaseDetail = Prisma.LabCaseGetPayload<{
     include: {
-        customer: { select: { id: true; name: true; role: true } }
+        customer: { select: { id: true; publicCode: true; role: true; name: true } }
         assignedDesigner: {
             include: {
-                user: { select: { id: true; name: true; email: true; image: true } }
+                user: { select: { id: true; publicCode: true; image: true } }
                 services: { where: { isActive: true } }
             }
         }
         files: true
         offers: {
             include: {
-                designerProfile: { include: { user: { select: { id: true; name: true; image: true } } } }
+                designerProfile: { include: { user: { select: { id: true; publicCode: true; image: true } } } }
             }
         }
         revisions: true
@@ -36,13 +100,13 @@ export type LabCaseFileItem = Prisma.LabCaseFileGetPayload<{}>
 
 export type DesignerListItem = Prisma.DesignerProfileGetPayload<{
     include: {
-        user: { select: { id: true; name: true; image: true } }
+        user: { select: { id: true; publicCode: true; image: true } }
         services: { where: { isActive: true } }
     }
 }>
 
 export type LabProfileListItem = Prisma.LabProfileGetPayload<{
-    include: { user: { select: { id: true; name: true } } }
+    include: { user: { select: { id: true; publicCode: true } } }
 }>
 
 export const LAB_CASE_STATUSES = [

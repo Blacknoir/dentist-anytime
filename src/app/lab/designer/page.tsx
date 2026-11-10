@@ -17,7 +17,7 @@ import { getLabActor } from "@/app/actions/lab"
 import { getDesignerDashboard, getDesignerStripeStatus } from "@/app/actions/lab-designer"
 import { FileRow, PaymentBadge, StatusBadge } from "@/components/lab/lab-components"
 import { DeliverableUpload, InlineNotice, OfferForm, StartProductionButton } from "@/components/lab/case-panel"
-import { euros, formatDate } from "@/lib/lab"
+import { euros, formatDate, partyLabel } from "@/lib/lab"
 
 export const dynamic = "force-dynamic"
 
@@ -40,6 +40,15 @@ export default async function DesignerDashboardPage() {
                         <p className="text-gray-600 mt-1">
                             Προσφορές, ανατεθειμένες εργασίες και παραδοτέα.
                         </p>
+                        {profile?.user?.publicCode && (
+                            <p className="text-xs text-gray-500 mt-2">
+                                Ο δημόσιος κωδικός σου:{" "}
+                                <strong className="text-gray-900">
+                                    CAD Designer #{profile.user.publicCode}
+                                </strong>{" "}
+                                — τα στοιχεία επικοινωνίας σου παραμένουν κρυφά από τους πελάτες.
+                            </p>
+                        )}
                     </div>
                     <div className="flex gap-2">
                         <Button variant="outline" asChild>
@@ -124,6 +133,9 @@ export default async function DesignerDashboardPage() {
                                                 </div>
                                                 <p className="text-sm text-gray-500 mt-1">
                                                     {target.type} · {target.material} · {target.units} τεμ.
+                                                    <span className="ml-3">
+                                                        Πελάτης: {partyLabel(target.customer)}
+                                                    </span>
                                                     {target.deadline && (
                                                         <span className="inline-flex items-center gap-1 ml-3">
                                                             <CalendarClock className="h-3.5 w-3.5" />{" "}

@@ -1,46 +1,18 @@
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useActionState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Logo } from "@/components/shared/logo"
-import { signIn } from "next-auth/react"
+import { signInAdmin, type AdminLoginState } from "@/app/actions/admin-auth"
 
 export default function AdminLoginPage() {
-    const [username, setUsername] = useState("")
-    const [password, setPassword] = useState("")
-    const [error, setError] = useState("")
-    const [loading, setLoading] = useState(false)
-    const router = useRouter()
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setLoading(true)
-        setError("")
-
-        try {
-            const result = await signIn("credentials", {
-                username,
-                password,
-                redirect: false
-            })
-
-            if (result?.error) {
-                setError("Invalid credentials")
-            } else {
-                // Use window.location.href for a hard redirect to ensure the 
-                // server session is correctly updated and recognized.
-                window.location.href = "/admin/dashboard"
-            }
-        } catch (err) {
-            setError("Something went wrong")
-        } finally {
-            setLoading(false)
-        }
-    }
+    const [state, formAction, pending] = useActionState<AdminLoginState | null, FormData>(
+        signInAdmin,
+        null
+    )
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
@@ -48,6 +20,9 @@ export default function AdminLoginPage() {
                 <div className="text-center">
                     <Logo className="mx-auto" />
                     <h2 className="mt-6 text-3xl font-bold text-gray-900">Admin Portal</h2>
+                    <p className="mt-2 text-sm text-gray-500">
+                        Σύνδεση διαχειριστή της πλατφόρμας.
+                    </p>
                 </div>
 
                 <Card className="border-none shadow-xl">
@@ -55,14 +30,15 @@ export default function AdminLoginPage() {
                         <CardTitle className="text-xl text-center">Login to your account</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={handleSubmit} className="space-y-6">
+                        <form action={formAction} className="space-y-6">
                             <div className="space-y-2">
                                 <Label htmlFor="username">Username</Label>
                                 <Input
                                     id="username"
+                                    name="username"
                                     type="text"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
+                                    autoComplete="username"
+                                    placeholder="admin"
                                     required
                                 />
                             </div>
@@ -70,23 +46,27 @@ export default function AdminLoginPage() {
                                 <Label htmlFor="password">Password</Label>
                                 <Input
                                     id="password"
+                                    name="password"
                                     type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    autoComplete="current-password"
                                     required
                                 />
                             </div>
 
-                            {error && (
-                                <p className="text-sm text-red-600 font-medium">{error}</p>
+                            {state?.error && (
+                                <p className="text-sm text-red-600 font-medium">{state.error}</p>
                             )}
 
-                            <Button type="submit" className="w-full">
-                                Sign In
+                            <Button type="submit" className="w-full" disabled={pending}>
+                                {pending ? "Σύνδεση..." : "Sign In"}
                             </Button>
                         </form>
                     </CardContent>
                 </Card>
+
+                <p className="text-center text-xs text-gray-400">
+                    Τα στοιχεία σύνδεσης ορίζονται μέσω ADMIN_USERNAME / ADMIN_PASSWORD στο environment.
+                </p>
             </div>
         </div>
     )
