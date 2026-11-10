@@ -1,7 +1,8 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Activity, FileClock, ShieldCheck, Trash2, Users } from "lucide-react"
+import { Activity, FileClock, PlusCircle, ShieldCheck, Trash2, Users } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import {
     listAuditEvents,
     listDeletionRequests,
@@ -32,11 +33,27 @@ export default async function LabAdminPage() {
     return (
         <div className="pt-14 pb-20">
             <div className="container mx-auto px-4 md:px-6 max-w-6xl">
-                <h1 className="text-3xl font-bold text-gray-900">Διαχείριση συμμόρφωσης</h1>
-                <p className="text-gray-600 mt-1">
-                    Επαληθευση επαγγέλματος, καταγραφές πρόσβασης, αρχείο ελέγχου, περιστατικά ασφαλείας και
-                    αιτήματα διαγραφής.
-                </p>
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-900">Διαχείριση συμμόρφωσης</h1>
+                        <p className="text-gray-600 mt-1">
+                            Επαλήθευση επαγγέλματος, καταγραφές πρόσβασης, αρχείο ελέγχου, περιστατικά ασφαλείας και
+                            αιτήματα διαγραφής.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" asChild>
+                            <Link href="/lab/new">
+                                <PlusCircle className="h-4 w-4 mr-1" /> Νέα εργασία
+                            </Link>
+                        </Button>
+                        <Button variant="outline" asChild>
+                            <Link href="/admin/dashboard">
+                                <Activity className="h-4 w-4 mr-1" /> Κλασικό admin
+                            </Link>
+                        </Button>
+                    </div>
+                </div>
 
                 <Card className="mt-6">
                     <CardHeader>

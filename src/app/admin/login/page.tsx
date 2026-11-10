@@ -1,6 +1,7 @@
 "use client"
 
 import { useActionState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,7 +22,8 @@ export default function AdminLoginPage() {
                     <Logo className="mx-auto" />
                     <h2 className="mt-6 text-3xl font-bold text-gray-900">Admin Portal</h2>
                     <p className="mt-2 text-sm text-gray-500">
-                        Σύνδεση διαχειριστή της πλατφόρμας.
+                        Σύνδεση διαχειριστή της πλατφόρμας. Μετά τη σύνδεση μεταφέρεσαι στη διαχείριση
+                        του Dentora Lab.
                     </p>
                 </div>
 
@@ -66,6 +68,11 @@ export default function AdminLoginPage() {
 
                 <p className="text-center text-xs text-gray-400">
                     Τα στοιχεία σύνδεσης ορίζονται μέσω ADMIN_USERNAME / ADMIN_PASSWORD στο environment.
+                </p>
+                <p className="text-center text-xs text-gray-400">
+                    <Link href="/lab/login" className="hover:text-primary-600">
+                        Χρειάζεσαι λογαριασμό Dentora Lab; Σύνδεση εδώ
+                    </Link>
                 </p>
             </div>
         </div>

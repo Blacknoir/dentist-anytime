@@ -191,7 +191,7 @@ async function main() {
     const dentist = await upsertUser(DEMO_DENTIST_EMAIL, "Δρ. Μαρία Παπαδοπούλου", "DENTIST")
     const designerUser = await upsertUser(DEMO_DESIGNER_EMAIL, "Νίκος Αθανασίου · CAD Studio", "DESIGNER")
     const labUser = await upsertUser(DEMO_LAB_EMAIL, "Οδοντοτεχνικό Εργαστήριο Αιγαίου", "LAB")
-    await upsertUser("admin@dentistanytime.com", "Platform Admin", "ADMIN")
+    const adminUser = await upsertUser("admin@dentistanytime.com", "Platform Admin", "ADMIN")
 
     await prisma.dentistProfile.upsert({
         where: { userId: dentist.id },
@@ -292,7 +292,7 @@ async function main() {
     })
 
     await ensureLegalDocuments()
-    for (const user of [dentist, designerUser, labUser]) {
+    for (const user of [dentist, designerUser, labUser, adminUser]) {
         await ensureConsents(user.id)
     }
 
