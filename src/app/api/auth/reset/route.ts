@@ -33,7 +33,15 @@ export async function GET(request: Request) {
 
     const response = NextResponse.redirect(new URL(redirectTo, url.origin))
     for (const name of AUTH_COOKIES) {
-        response.cookies.set(name, "", { path: "/", maxAge: 0 })
+        // The secure flag is required so that __Host-/__Secure- cookies are
+        // really removed by the browser.
+        response.cookies.set(name, "", {
+            path: "/",
+            maxAge: 0,
+            secure: true,
+            httpOnly: true,
+            sameSite: "lax",
+        })
     }
     return response
 }
