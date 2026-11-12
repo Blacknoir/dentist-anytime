@@ -336,52 +336,61 @@ async function main() {
     const scan = buildCrownStl({ segments: 48, height: 9, radius: 5.2, grooves: false, name: "scan_26" })
     const design = buildCrownStl({ segments: 56, height: 11, radius: 5.8, grooves: true, name: "crown_26_final" })
 
-    const scanFile = await storeLabFile({ caseId: labCase.id, fileName: "scan_26.stl", body: scan })
-    const instructionFile = await storeLabFile({
-        caseId: labCase.id,
-        fileName: "instructions_26.txt",
-        body: Buffer.from(INSTRUCTION_TEXT, "utf8"),
-        contentType: "text/plain",
-    })
-    const designFile = await storeLabFile({ caseId: labCase.id, fileName: "crown_26_final.stl", body: design })
+    const seedFiles = [
+        {
+            kind: "INPUT_STL",
+            fileName: "scan_26.stl",
+            body: scan,
+            mimeType: "model/stl",
+            uploadedById: dentist.id,
+            uploaderRole: "CUSTOMER",
+        },
+        {
+            kind: "INPUT_INSTRUCTION",
+            fileName: "instructions_26.txt",
+            body: Buffer.from(INSTRUCTION_TEXT, "utf8"),
+            mimeType: "text/plain",
+            uploadedById: dentist.id,
+            uploaderRole: "CUSTOMER",
+        },
+        {
+            kind: "OUTPUT_STL",
+            fileName: "crown_26_final.stl",
+            body: design,
+            mimeType: "model/stl",
+            uploadedById: designerUser.id,
+            uploaderRole: "DESIGNER",
+        },
+    ]
 
-    await prisma.labCaseFile.createMany({
-        data: [
-            {
+    for (const item of seedFiles) {
+        const record = await prisma.labCaseFile.create({
+            data: {
                 caseId: labCase.id,
-                kind: "INPUT_STL",
-                fileName: "scan_26.stl",
-                fileSize: scan.length,
-                mimeType: "model/stl",
-                storagePath: scanFile.storagePath,
-                storageProvider: scanFile.storageProvider,
-                uploadedById: dentist.id,
-                uploaderRole: "CUSTOMER",
+                kind: item.kind,
+                fileName: item.fileName,
+                fileSize: item.body.length,
+                mimeType: item.mimeType,
+                storagePath: "pending",
+                storageProvider: "local",
+                uploadedById: item.uploadedById,
+                uploaderRole: item.uploaderRole,
             },
-            {
-                caseId: labCase.id,
-                kind: "INPUT_INSTRUCTION",
-                fileName: "instructions_26.txt",
-                fileSize: Buffer.byteLength(INSTRUCTION_TEXT),
-                mimeType: "text/plain",
-                storagePath: instructionFile.storagePath,
-                storageProvider: instructionFile.storageProvider,
-                uploadedById: dentist.id,
-                uploaderRole: "CUSTOMER",
-            },
-            {
-                caseId: labCase.id,
-                kind: "OUTPUT_STL",
-                fileName: "crown_26_final.stl",
-                fileSize: design.length,
-                mimeType: "model/stl",
-                storagePath: designFile.storagePath,
-                storageProvider: designFile.storageProvider,
-                uploadedById: designerUser.id,
-                uploaderRole: "DESIGNER",
-            },
-        ],
-    })
+        })
+
+        const stored = await storeLabFile({
+            caseId: labCase.id,
+            fileName: item.fileName,
+            body: item.body,
+            contentType: item.mimeType,
+            fileId: record.id,
+        })
+
+        await prisma.labCaseFile.update({
+            where: { id: record.id },
+            data: { storagePath: stored.storagePath, storageProvider: stored.storageProvider },
+        })
+    }
 
     await prisma.labOffer.create({
         data: {

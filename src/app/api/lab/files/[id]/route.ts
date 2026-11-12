@@ -86,7 +86,8 @@ export async function GET(
     try {
         const { body, contentType } = await readLabFile(
             file.storagePath,
-            file.storageProvider as "blob" | "local"
+            file.storageProvider as "blob" | "local" | "db",
+            file.id
         )
 
         await recordFileAccess({

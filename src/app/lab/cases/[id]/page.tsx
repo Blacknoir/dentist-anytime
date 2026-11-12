@@ -126,7 +126,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                             <Users className="h-4 w-4 text-violet-600" />
                                             <span className="text-gray-600">Ανατέθηκε στον</span>
                                             <strong className="text-gray-900">
-                                                CAD Designer #{target.assignedDesigner.user?.publicCode}
+                                                CAD Designer
                                             </strong>
                                         </span>
                                         <Link
@@ -188,7 +188,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                                     <div className="min-w-0">
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <strong className="text-gray-900">
-                                                                CAD Designer #{designer.user?.publicCode}
+                                                                CAD Designer
                                                             </strong>
                                                             {designer.isVerified && (
                                                                 <span className="text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
@@ -290,7 +290,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                         [
                                             "Ανάθεση σε designer",
                                             target.assignedDesigner
-                                                ? `CAD Designer #${target.assignedDesigner.user?.publicCode}`
+                                                ? "CAD Designer"
                                                 : "εκκρεμεί",
                                             !!target.assignedDesigner,
                                         ],
@@ -370,6 +370,20 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                             paymentStatus={target.paymentStatus}
                                         />
                                     </div>
+                                )}
+
+                                {target.paymentStatus === "HELD" && (
+                                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                                        Το ποσό κρατίεται σε ασφάλεια στη Dentora. Θα αποδεσμευτεί στον designer
+                                        μόλις εγκρίνεις την παράδοση.
+                                    </p>
+                                )}
+
+                                {target.status === "COMPLETED" && target.paymentStatus === "HELD" && (
+                                    <p className="text-[11px] text-amber-600 leading-relaxed">
+                                        Η εργασία ολοκληρώθηκε. Τα χρήματα θα αποδεσμευτούν στον designer μόλις
+                                        συνδέσει το Stripe account του.
+                                    </p>
                                 )}
 
                                 {target.paymentStatus === "HELD" && (

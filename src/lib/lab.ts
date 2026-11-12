@@ -42,17 +42,33 @@ export function publicCodeFor(user: {
     return user.publicCode || derivePublicCode(user.id, user.role || "PATIENT")
 }
 
-/** "CAD Designer #CD-9134" — the label a counterpart sees. */
+/**
+ * The marketplace never exposes the real identity of a party: counterparties
+ * only see the role ("CAD Designer", "Οδοντίατρος") and refer to each other
+ * by the code of the work (LAB-2026-1234). This makes it impossible to find
+ * a party outside the platform and close the deal there.
+ */
 export function partyLabel(user: { id: string; role?: string | null; publicCode?: string | null }) {
     const role = user.role || "PATIENT"
-    const label = PARTY_ROLE_LABEL[role] ?? "Επαγγελματίας"
-    return `${label} #${publicCodeFor(user)}`
+    return PARTY_ROLE_LABEL[role] ?? "Επαγγελματίας"
 }
 
-/** Two-letter avatar tag derived from the anonymous code (never from a name). */
+/** Two-letter avatar tag derived from the role (never from a name). */
 export function codeInitials(code?: string | null) {
     if (!code) return "··"
     return code.replace("-", "").slice(0, 2).toUpperCase()
+}
+
+export const ROLE_TAG: Record<string, string> = {
+    DENTIST: "ΟΔ",
+    LAB: "ΕΡ",
+    DESIGNER: "CD",
+    PATIENT: "ΑΣ",
+    ADMIN: "AD",
+}
+
+export function roleTag(role?: string | null) {
+    return ROLE_TAG[role || "PATIENT"] ?? "··"
 }
 
 /**
@@ -71,8 +87,8 @@ export function redactContactDetails(text: string) {
 
 export type LabCaseListItem = Prisma.LabCaseGetPayload<{
     include: {
-        customer: { select: { id: true; publicCode: true; role: true } }
-        assignedDesigner: { select: { id: true; user: { select: { publicCode: true } } } }
+        customer: { select: { id: true; role: true } }
+        assignedDesigner: { select: { id: true } }
         _count: { select: { files: true; offers: true; revisions: true } }
     }
 }>
@@ -82,14 +98,14 @@ export type LabCaseDetail = Prisma.LabCaseGetPayload<{
         customer: { select: { id: true; publicCode: true; role: true; name: true } }
         assignedDesigner: {
             include: {
-                user: { select: { id: true; publicCode: true; image: true } }
+                user: { select: { id: true; image: true } }
                 services: { where: { isActive: true } }
             }
         }
         files: true
         offers: {
             include: {
-                designerProfile: { include: { user: { select: { id: true; publicCode: true; image: true } } } }
+                designerProfile: { include: { user: { select: { id: true; image: true } } } }
             }
         }
         revisions: true
@@ -100,13 +116,13 @@ export type LabCaseFileItem = Prisma.LabCaseFileGetPayload<{}>
 
 export type DesignerListItem = Prisma.DesignerProfileGetPayload<{
     include: {
-        user: { select: { id: true; publicCode: true; image: true } }
+        user: { select: { id: true; image: true } }
         services: { where: { isActive: true } }
     }
 }>
 
 export type LabProfileListItem = Prisma.LabProfileGetPayload<{
-    include: { user: { select: { id: true; publicCode: true } } }
+    include: { user: { select: { id: true } } }
 }>
 
 export const LAB_CASE_STATUSES = [
@@ -206,11 +222,20 @@ export function generateCaseCode() {
     return `LAB-${year}-${digits}`
 }
 
+// A fixed timezone keeps the server and the browser output identical, which
+// avoids hydration mismatches (React error #441) on the case cards.
+export const LAB_TIMEZONE = "Europe/Athens"
+
 export function formatDate(value: Date | string | null | undefined) {
     if (!value) return "—"
     const date = typeof value === "string" ? new Date(value) : value
     if (Number.isNaN(date.getTime())) return "—"
-    return new Intl.DateTimeFormat("el-GR", { day: "2-digit", month: "short", year: "numeric" }).format(date)
+    return new Intl.DateTimeFormat("el-GR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: LAB_TIMEZONE,
+    }).format(date)
 }
 
 export function formatDateTime(value: Date | string | null | undefined) {
@@ -223,6 +248,7 @@ export function formatDateTime(value: Date | string | null | undefined) {
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: LAB_TIMEZONE,
     }).format(date)
 }
 
@@ -246,11 +272,12 @@ export function initials(name?: string | null) {
 /** Guesses the file kind from the extension when the client does not send one. */
 export function inferFileKind(fileName: string, fallback: LabFileKind): LabFileKind {
     const lower = fileName.toLowerCase()
+    const isOutput = fallback === "OUTPUT_STL" || fallback === "OUTPUT_PDF"
     if (lower.endsWith(".stl") || lower.endsWith(".obj") || lower.endsWith(".3mf") || lower.endsWith(".zip") || lower.endsWith(".step") || lower.endsWith(".stp")) {
-        return fallback === "OUTPUT_PDF" ? "OUTPUT_STL" : "INPUT_STL"
+        return isOutput ? "OUTPUT_STL" : "INPUT_STL"
     }
     if (lower.endsWith(".pdf") || lower.endsWith(".doc") || lower.endsWith(".docx") || lower.endsWith(".txt")) {
-        return fallback === "OUTPUT_PDF" ? "OUTPUT_PDF" : "INPUT_INSTRUCTION"
+        return isOutput ? "OUTPUT_PDF" : "INPUT_INSTRUCTION"
     }
     if (lower.endsWith(".dcm")) return "XRAY"
     if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")) return "PHOTO"

@@ -214,8 +214,8 @@ export async function getLabCases(filter?: {
         orderBy: { createdAt: "desc" },
         include: {
             // Only the anonymous code travels to the browser — never a real name.
-            customer: { select: { id: true, publicCode: true, role: true } },
-            assignedDesigner: { select: { id: true, user: { select: { publicCode: true } } } },
+            customer: { select: { id: true, role: true } },
+            assignedDesigner: { select: { id: true } },
             _count: { select: { files: true, offers: true, revisions: true } },
         },
         take: 100,
@@ -450,13 +450,9 @@ export async function uploadCaseFiles(
         if (!allowedKinds.includes(kind)) continue
 
         const body = Buffer.from(await file.arrayBuffer())
-        const stored = await storeLabFile({
-            caseId,
-            fileName: file.name,
-            body,
-            contentType: file.type || undefined,
-        })
 
+        // The row is created first so that the file can also be stored inside
+        // the database (the fallback used on hosts with a read-only disk).
         const record = await prisma.labCaseFile.create({
             data: {
                 caseId,
@@ -464,12 +460,31 @@ export async function uploadCaseFiles(
                 fileName: file.name,
                 fileSize: file.size,
                 mimeType: file.type || null,
-                storagePath: stored.storagePath,
-                storageProvider: stored.storageProvider,
+                storagePath: "pending",
+                storageProvider: "local",
                 uploadedById: actor.userId,
                 uploaderRole,
             },
         })
+
+        try {
+            const stored = await storeLabFile({
+                caseId,
+                fileName: file.name,
+                body,
+                contentType: file.type || undefined,
+                fileId: record.id,
+            })
+
+            await prisma.labCaseFile.update({
+                where: { id: record.id },
+                data: { storagePath: stored.storagePath, storageProvider: stored.storageProvider },
+            })
+        } catch (error) {
+            await prisma.labCaseFile.delete({ where: { id: record.id } }).catch(() => undefined)
+            throw error
+        }
+
         uploaded.push(record.id)
     }
 
@@ -590,6 +605,13 @@ export async function approveDelivery(caseId: string) {
     }
     if (!["DELIVERED", "IN_PRODUCTION"].includes(target.status)) {
         throw new Error("Η εργασία δεν είναι σε κατάσταση παράδοσης.")
+    }
+
+    const deliverables = await prisma.labCaseFile.count({
+        where: { caseId, kind: { in: OUTPUT_FILE_KINDS } },
+    })
+    if (deliverables === 0) {
+        throw new Error("Ο designer δεν έχει παραδώσει ακόμα αρχεία.")
     }
 
     await prisma.labCase.update({

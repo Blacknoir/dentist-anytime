@@ -98,7 +98,7 @@ export function CaseCard({ c }: { c: LabCaseListItem }) {
 export function DesignerCard({ designer }: { designer: DesignerListItem }) {
     const prices = designer.services.map((service) => service.price)
     const priceFrom = prices.length ? Math.min(...prices) : null
-    const code = designer.user?.publicCode || ""
+    const tag = "CD"
 
     return (
         <Link href={`/lab/designers/${designer.id}`}>
@@ -107,13 +107,11 @@ export function DesignerCard({ designer }: { designer: DesignerListItem }) {
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <div className="h-11 w-11 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center font-bold">
-                                {codeInitials(code)}
+                                {tag}
                             </div>
                             <div>
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    <h3 className="font-bold text-gray-900">
-                                        CAD Designer #{code}
-                                    </h3>
+                                    <h3 className="font-bold text-gray-900">CAD Designer</h3>
                                     {designer.isVerified && (
                                         <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">
                                             <BadgeCheck className="h-3 w-3" /> Verified

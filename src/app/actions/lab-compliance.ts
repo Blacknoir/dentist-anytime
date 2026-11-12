@@ -570,7 +570,11 @@ export async function executeDeletionRequest(id: string) {
 
     const { deleteLabFile } = await import("@/lib/lab-storage")
     for (const file of files) {
-        await deleteLabFile(file.storagePath, file.storageProvider as "blob" | "local").catch(() => undefined)
+        await deleteLabFile(
+            file.storagePath,
+            file.storageProvider as "blob" | "local" | "db",
+            file.id
+        ).catch(() => undefined)
     }
 
     await prisma.labCase.deleteMany({ where: { customerId: request.userId } })

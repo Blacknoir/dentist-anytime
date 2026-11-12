@@ -30,7 +30,6 @@ export default async function LabDesignersPage({
 
     if (query) {
         where.OR = [
-            { user: { publicCode: { contains: query, mode: "insensitive" } } },
             { headline: { contains: query, mode: "insensitive" } },
             { bio: { contains: query, mode: "insensitive" } },
             { city: { contains: query, mode: "insensitive" } },
@@ -64,7 +63,7 @@ export default async function LabDesignersPage({
         orderBy: [orderBy as any, { createdAt: "desc" }],
         include: {
             // The real name never leaves the platform: only the public code.
-            user: { select: { id: true, publicCode: true, image: true } },
+            user: { select: { id: true, image: true } },
             services: { where: { isActive: true } },
         },
     })

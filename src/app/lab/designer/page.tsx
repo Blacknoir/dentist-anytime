@@ -40,15 +40,10 @@ export default async function DesignerDashboardPage() {
                         <p className="text-gray-600 mt-1">
                             Προσφορές, ανατεθειμένες εργασίες και παραδοτέα.
                         </p>
-                        {profile?.user?.publicCode && (
-                            <p className="text-xs text-gray-500 mt-2">
-                                Ο δημόσιος κωδικός σου:{" "}
-                                <strong className="text-gray-900">
-                                    CAD Designer #{profile.user.publicCode}
-                                </strong>{" "}
-                                — τα στοιχεία επικοινωνίας σου παραμένουν κρυφά από τους πελάτες.
-                            </p>
-                        )}
+                        <p className="text-xs text-gray-500 mt-2">
+                            Τα στοιχεία επικοινωνίας σου παραμένουν κρυφά από τους πελάτες: στο marketplace
+                            εμφανίζεσαι ως «CAD Designer» και η εργασία σου με τον κωδικό της (π.χ. LAB-2026-1234).
+                        </p>
                     </div>
                     <div className="flex gap-2">
                         <Button variant="outline" asChild>

@@ -247,7 +247,8 @@ model LabCaseFile {
   fileSize       Int
   mimeType       String?
   storagePath    String
-  storageProvider String  @default("blob") // blob | local
+  storageProvider String  @default("blob") // blob | local | db
+  content        Bytes?   // fallback storage inside the database (used when no blob storage is available)
   uploadedById   String
   uploadedBy     User     @relation(fields: [uploadedById], references: [id])
   uploaderRole   String   @default("CUSTOMER") // CUSTOMER, DESIGNER

@@ -32,12 +32,12 @@ export default async function DesignerProfilePage({ params }: { params: Promise<
                 <div className="mt-4 flex flex-wrap items-start justify-between gap-6">
                     <div className="flex items-start gap-4">
                         <div className="h-16 w-16 rounded-2xl bg-primary-50 text-primary-700 flex items-center justify-center text-xl font-bold">
-                            {codeInitials(designer.user?.publicCode)}
+                            {"CD"}
                         </div>
                         <div>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                                    CAD Designer #{designer.user?.publicCode}
+                                    CAD Designer
                                 </h1>
                                 {designer.isVerified && (
                                     <span className="inline-flex items-center gap-1 text-[11px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">

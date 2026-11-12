@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Menu, X, Globe, ChevronDown } from "lucide-react"
+import { Menu, X, Globe, ChevronDown, Briefcase } from "lucide-react"
 import { Logo } from "@/components/shared/logo"
 
 import { cn } from "@/lib/utils"
@@ -63,6 +63,13 @@ export function Header() {
                             className="text-sm font-medium text-gray-600 hover:text-primary-500 transition-colors"
                         >
                             {t('nav.blog')}
+                        </Link>
+                        <Link
+                            href="/lab"
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-primary-500 transition-colors"
+                        >
+                            <Briefcase className="h-4 w-4" />
+                            Dentora Lab
                         </Link>
                     </nav>
 
@@ -197,6 +204,14 @@ export function Header() {
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
                         {t('nav.blog')}
+                    </Link>
+                    <Link
+                        href="/lab"
+                        className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 py-2"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                        <Briefcase className="h-4 w-4" />
+                        Dentora Lab
                     </Link>
 
                     {/* Mobile Language Selector */}

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { redactContactDetails } from "@/lib/lab"
 import { stripe } from "@/lib/stripe"
 import { getLabActor } from "@/app/actions/lab"
 
@@ -34,8 +35,8 @@ export async function updateDesignerProfile(input: {
     await prisma.designerProfile.update({
         where: { id: actor.designerProfileId },
         data: {
-            headline,
-            bio: (input.bio || "").trim() || null,
+            headline: redactContactDetails(headline),
+            bio: input.bio ? redactContactDetails(input.bio).trim() || null : null,
             city: (input.city || "").trim() || null,
         },
     })
@@ -294,7 +295,7 @@ export async function updateLabProfile(input: {
     const data = {
         labName,
         city: (input.city || "").trim() || null,
-        about: (input.about || "").trim() || null,
+        about: input.about ? redactContactDetails(input.about).trim() || null : null,
         equipment: (input.equipment || []).filter(Boolean),
         materials: (input.materials || []).filter(Boolean),
     }

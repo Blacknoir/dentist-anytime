@@ -86,6 +86,18 @@ export default function LoginPage() {
                             {t('pages.login.sign_up')}
                         </Link>
                     </div>
+
+                    <details className="text-xs text-gray-400 border-t border-gray-100 pt-4">
+                        <summary className="cursor-pointer hover:text-gray-600">
+                            Η σελίδα δεν ανοίγει με το μήνυμα «The browser sent more header data than this site
+                            accepts»;
+                        </summary>
+                        <p className="mt-2 leading-relaxed">
+                            Το πρόβλημα είναι στα cookies του browser. Άνοιξε τον ιστότο σε private window ή
+                            καθάρισε τα cookies του dentora.gr (Chrome: chrome://settings/content/all →
+                            «dentora» → διαγραφή). Δεν χρειάζεται να ξαναγράψεις τα στοιχεία σου.
+                        </p>
+                    </details>
                 </div>
             </div>
 

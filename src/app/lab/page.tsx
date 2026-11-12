@@ -18,8 +18,8 @@ export default async function LabHomePage() {
             orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
             take: 3,
             include: {
-                customer: { select: { id: true, publicCode: true, role: true } },
-                assignedDesigner: { select: { id: true, user: { select: { publicCode: true } } } },
+                customer: { select: { id: true, role: true } },
+                assignedDesigner: { select: { id: true } },
                 _count: { select: { files: true, offers: true, revisions: true } },
             },
         }),
@@ -27,7 +27,7 @@ export default async function LabHomePage() {
             orderBy: [{ completedCases: "desc" }, { createdAt: "desc" }],
             take: 3,
             include: {
-                user: { select: { id: true, publicCode: true, image: true } },
+                user: { select: { id: true, image: true } },
                 services: { where: { isActive: true } },
             },
         }),
@@ -52,12 +52,15 @@ export default async function LabHomePage() {
                         <div className="mt-7 flex flex-wrap gap-3">
                             <Button size="lg" asChild>
                                 <Link href="/lab/new">
-                                    Δημιούργησε εργασία
+                                    Δημιούργεσε εργασία
                                     <ArrowRight className="h-4 w-4 ml-2" />
                                 </Link>
                             </Button>
                             <Button size="lg" variant="outline" asChild>
                                 <Link href="/lab/designers">Δες CAD designers</Link>
+                            </Button>
+                            <Button size="lg" variant="outline" asChild>
+                                <Link href="/lab/login">Είσαι οδοντίατρος; Σύνδεση</Link>
                             </Button>
                             <Button size="lg" variant="ghost" asChild>
                                 <Link href="/lab/register">Γίνε CAD designer</Link>
