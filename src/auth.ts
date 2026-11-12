@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import { assignPublicCode } from "@/lib/lab-public-code"
+import { stripAvatarFromToken } from "@/lib/avatar"
 
 import { cookies } from "next/headers"
 
@@ -242,6 +243,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     token.id = user.id
                 }
             }
+
+            // The picture must never be a base64 image: it is copied into the
+            // session cookie, and a 70KB avatar would push the request headers
+            // over the host limit (494 REQUEST_HEADER_TOO_LARGE). Avatars are
+            // stored as files and referenced by URL.
+            stripAvatarFromToken(token)
+
             // Keep the rest of the token (name, email, picture) so the session
             // exposes them; only role/id are refreshed from the database.
             return {

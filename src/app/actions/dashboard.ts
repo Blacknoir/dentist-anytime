@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { getStripeAccountStatus } from "@/app/actions/stripe"
+import { isDataUrl, storeAvatarFromDataUrl } from "@/lib/avatar"
 
 export async function getDashboardStats() {
     const session = await auth()
@@ -204,16 +205,25 @@ export async function updateDentistProfile(data: any) {
     const session = await auth()
     if (!session?.user?.id) throw new Error("Unauthorized")
 
-    // 1. Update User name and image
+    // 1. The avatar is stored as a file (User.avatarData) and `image` keeps
+    //    the public URL. A base64 image in the session cookie would exceed
+    //    the request header limit of the host (494 REQUEST_HEADER_TOO_LARGE).
+    let image = typeof data.image === "string" ? data.image : undefined
+    if (isDataUrl(image)) {
+        const stored = await storeAvatarFromDataUrl(session.user.id, image)
+        image = stored ?? undefined
+    }
+
+    // 2. Update User name and image
     await prisma.user.update({
         where: { id: session.user.id },
         data: {
             name: data.name,
-            image: data.image
+            ...(image !== undefined ? { image } : {})
         }
     })
 
-    // 2. Update Dentist Profile (enforce minimum price of 20€)
+    // 3. Update Dentist Profile (enforce minimum price of 20€)
     const priceFrom = Math.max(20, data.priceFrom || 20)
     const result = await (prisma.dentistProfile as any).update({
         where: { userId: session.user.id },
@@ -229,7 +239,7 @@ export async function updateDentistProfile(data: any) {
             education: data.education,
             experienceYears: data.experienceYears,
             priceFrom: priceFrom,
-            image: data.image
+            ...(image !== undefined ? { image } : {})
         }
     })
 

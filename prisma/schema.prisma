@@ -16,6 +16,10 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
+  // The avatar file. `image` keeps the public URL (/api/avatar/<id>), the
+  // bytes live here so that the session cookie never carries a base64 image.
+  avatarData    Bytes?
+  avatarType    String?
   role          String    @default("PATIENT") // PATIENT, DENTIST, LAB, DESIGNER, ADMIN
   publicCode    String?   @unique // anonymous marketplace code (DN-1234, LB-1234, CD-1234)
   accounts      Account[]

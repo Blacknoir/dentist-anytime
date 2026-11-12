@@ -54,9 +54,31 @@ export function ProfileForm({ initialData }: { initialData: any }) {
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (file) {
+            // The image is scaled down before it is sent: a full size photo
+            // would end up as a very large base64 string.
             const reader = new FileReader()
             reader.onloadend = () => {
-                setFormData(prev => ({ ...prev, image: reader.result as string }))
+                const result = reader.result as string
+                const img = new window.Image()
+                img.onload = () => {
+                    const maxSize = 512
+                    const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+                    const canvas = document.createElement("canvas")
+                    canvas.width = Math.round(img.width * scale)
+                    canvas.height = Math.round(img.height * scale)
+                    const ctx = canvas.getContext("2d")
+                    if (!ctx) {
+                        setFormData(prev => ({ ...prev, image: result }))
+                        return
+                    }
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+                    setFormData(prev => ({
+                        ...prev,
+                        image: canvas.toDataURL("image/jpeg", 0.82),
+                    }))
+                }
+                img.onerror = () => setFormData(prev => ({ ...prev, image: result }))
+                img.src = result
             }
             reader.readAsDataURL(file)
         }
