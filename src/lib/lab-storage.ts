@@ -39,6 +39,17 @@ export function isBlobConfigured() {
     return !!process.env.BLOB_READ_WRITE_TOKEN
 }
 
+/**
+ * LAB_STORAGE_PROVIDER forces a provider ("blob" | "local" | "db"). It is
+ * used by the seed script so the demo files end up in a place that is
+ * reachable from every host, and by the local development fallback.
+ */
+export function getForcedProvider(): StorageProvider | null {
+    const value = String(process.env.LAB_STORAGE_PROVIDER || "").toLowerCase()
+    if (value === "blob" || value === "local" || value === "db") return value
+    return null
+}
+
 export function getLocalUploadRoot() {
     // LAB_UPLOAD_DIR allows pointing the local fallback somewhere writable
     // (e.g. /tmp on serverless hosts). Vercel needs BLOB_READ_WRITE_TOKEN.
@@ -107,22 +118,27 @@ export async function storeLabFile(params: {
 }): Promise<{ storagePath: string; storageProvider: StorageProvider }> {
     const objectPath = buildStoragePath(params.caseId, params.fileName)
     const payload = encryptBuffer(params.body)
+    const forced = getForcedProvider()
 
-    if (isBlobConfigured()) {
-        try {
-            const url = await writeToBlob(objectPath, payload)
-            return { storagePath: url, storageProvider: "blob" }
-        } catch (error: any) {
-            console.warn(`[lab-storage] Blob storage failed (${error?.message}). Using the database.`)
-        }
-    } else {
-        try {
-            const localPath = await writeToDisk(objectPath, payload)
-            return { storagePath: localPath, storageProvider: "local" }
-        } catch (error: any) {
-            console.warn(
-                `[lab-storage] Local storage is not writable (${error?.message}). Using the database.`
-            )
+    if (forced !== "db") {
+        const useBlob = forced === "blob" || (forced === null && isBlobConfigured())
+
+        if (useBlob) {
+            try {
+                const url = await writeToBlob(objectPath, payload)
+                return { storagePath: url, storageProvider: "blob" }
+            } catch (error: any) {
+                console.warn(`[lab-storage] Blob storage failed (${error?.message}). Using the database.`)
+            }
+        } else {
+            try {
+                const localPath = await writeToDisk(objectPath, payload)
+                return { storagePath: localPath, storageProvider: "local" }
+            } catch (error: any) {
+                console.warn(
+                    `[lab-storage] Local storage is not writable (${error?.message}). Using the database.`
+                )
+            }
         }
     }
 

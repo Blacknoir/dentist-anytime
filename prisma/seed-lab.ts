@@ -15,6 +15,10 @@ import { storeLabFile } from "../src/lib/lab-storage"
 import { randomId, sha256 } from "../src/lib/lab-crypto"
 import { LAB_LEGAL_DOCUMENTS } from "../src/lib/lab-legal"
 
+// The demo files are stored inside the database so that they can be opened
+// from every host (a file on a local disk is not reachable on Vercel).
+process.env.LAB_STORAGE_PROVIDER = "db"
+
 const DEMO_DENTIST_EMAIL = "dentist@demo.dentora.gr"
 const DEMO_DESIGNER_EMAIL = "designer@demo.dentora.gr"
 const DEMO_LAB_EMAIL = "lab@demo.dentora.gr"
@@ -304,7 +308,11 @@ async function main() {
     for (const item of previous) {
         for (const file of item.files) {
             const { deleteLabFile } = await import("../src/lib/lab-storage")
-            await deleteLabFile(file.storagePath, file.storageProvider as "blob" | "local")
+            await deleteLabFile(
+                file.storagePath,
+                file.storageProvider as "blob" | "local" | "db",
+                file.id
+            )
         }
     }
     await prisma.labCase.deleteMany({ where: { customerId: dentist.id } })
