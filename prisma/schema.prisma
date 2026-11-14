@@ -31,6 +31,7 @@ model User {
   labCases        LabCase[]      @relation("CaseCustomer")
   uploadedFiles   LabCaseFile[]
   requestedRevisions CaseRevision[]
+  uploadSessions  LabUploadSession[]
   consents        DocumentConsent[]
   verificationRequests VerificationRequest[]
   deletionRequests DataDeletionRequest[]
@@ -177,7 +178,9 @@ model DesignerProfile {
   services        DesignerService[]
   offers          LabOffer[]
   assignedCases   LabCase[] @relation("AssignedDesigner")
+  requestedCases  LabCase[] @relation("RequestedDesigner")
   revisions       CaseRevision[]
+  portfolio       PortfolioItem[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -205,7 +208,87 @@ model LabProfile {
   equipment  String[] @default([])
   materials  String[] @default([])
   isVerified Boolean  @default(false)
+  portfolio  PortfolioItem[]
   createdAt  DateTime @default(now())
+}
+
+// ============================================================
+// PORTFOLIO (public work samples of designers and labs)
+// ============================================================
+
+model PortfolioItem {
+  id                String   @id @default(cuid())
+  ownerType         String   // DESIGNER, LAB
+  designerProfileId String?
+  designerProfile   DesignerProfile? @relation(fields: [designerProfileId], references: [id], onDelete: Cascade)
+  labProfileId      String?
+  labProfile        LabProfile? @relation(fields: [labProfileId], references: [id], onDelete: Cascade)
+  title             String
+  description       String?
+  category          String   @default("") // free text, e.g. "Κορώνες", "Εμφύτεμα"
+  fileName          String
+  mimeType          String
+  fileSize          Int
+  width             Int?
+  height            Int?
+  storagePath       String
+  storageProvider   String   @default("db") // blob | local | db
+  content           Bytes?   // fallback storage inside the database
+  position          Int      @default(0)
+  isCover           Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([designerProfileId])
+  @@index([labProfileId])
+}
+
+// ============================================================
+// LARGE FILE UPLOADS (chunked, resumable)
+// ============================================================
+
+model LabUploadSession {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  caseId       String?
+  case         LabCase? @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  fileName     String
+  fileSize     Int
+  mimeType     String?
+  kind         String?  // INPUT_STL, INPUT_INSTRUCTION, OUTPUT_STL, OUTPUT_PDF, PHOTO, XRAY
+  receivedBytes Int     @default(0)
+  checksum     String?  // sha256 of the assembled file
+  status       String   @default("PENDING") // PENDING, UPLOADING, COMPLETED, FAILED, EXPIRED
+  errorMessage String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  chunks       LabUploadChunk[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model LabUploadChunk {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   LabUploadSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  index     Int
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, index])
+}
+
+// Stripe events that were already processed (idempotency of the webhook).
+model LabWebhookEvent {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+
+  @@index([type])
 }
 
 model LabCase {
@@ -225,21 +308,31 @@ model LabCase {
   customerType       String   @default("DENTIST") // DENTIST, LAB
   assignedDesignerId String?
   assignedDesigner   DesignerProfile? @relation("AssignedDesigner", fields: [assignedDesignerId], references: [id])
+  // The designer the customer addressed directly. An addressed request is only
+  // a request: the designer still has to answer with a price before the work
+  // is assigned.
+  requestedDesignerId String?
+  requestedDesigner  DesignerProfile? @relation("RequestedDesigner", fields: [requestedDesignerId], references: [id])
   agreedPrice        Int?
   platformFee        Float?
   designerPayout     Float?
   paymentStatus      String   @default("UNPAID") // UNPAID, HELD, RELEASED, REFUNDED, FAILED
   stripePaymentIntentId String? @unique
   stripeTransferId   String?
+  // Client generated id of the submit, so that a retried upload never creates
+  // a second work.
+  clientRequestId    String?  @unique
   files              LabCaseFile[]
   offers             LabOffer[]
   revisions          CaseRevision[]
+  uploadSessions     LabUploadSession[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@index([status])
   @@index([customerId])
   @@index([assignedDesignerId])
+  @@index([requestedDesignerId])
 }
 
 model LabCaseFile {
@@ -270,10 +363,14 @@ model LabOffer {
   price             Int
   leadTimeDays      Int      @default(3)
   message           String?
-  status            String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  // DESIGNER: the designer answered with a price. CUSTOMER_REQUEST: the
+  // customer addressed this designer directly and proposed a price.
+  source            String   @default("DESIGNER") // DESIGNER, CUSTOMER_REQUEST
+  status            String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, WITHDRAWN
   createdAt         DateTime @default(now())
 
   @@unique([caseId, designerProfileId])
+  @@index([designerProfileId])
 }
 
 model CaseRevision {

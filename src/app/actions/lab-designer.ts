@@ -6,7 +6,8 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { redactContactDetails } from "@/lib/lab"
 import { stripe } from "@/lib/stripe"
-import { getLabActor } from "@/app/actions/lab"
+import { getLabActor } from "@/lib/lab-domain"
+import { LabActionError } from "@/lib/lab-domain"
 
 export async function getDesignerProfile() {
     const actor = await getLabActor()
@@ -155,7 +156,17 @@ export async function getDesignerDashboard() {
             },
         }),
         prisma.labCase.findMany({
-            where: { status: "OPEN" },
+            // Works that still have no assignment. A work with a price on the
+            // table (QUOTED) stays visible, so the designer can update their
+            // own offer.
+            where: {
+                status: { in: ["OPEN", "QUOTED"] },
+                OR: [
+                    { assignedDesignerId: null },
+                    { requestedDesignerId: designerProfileId },
+                    { assignedDesignerId: designerProfileId },
+                ],
+            },
             orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
             take: 20,
             select: {
@@ -168,6 +179,7 @@ export async function getDesignerDashboard() {
                 priority: true,
                 deadline: true,
                 createdAt: true,
+                requestedDesignerId: true,
             },
         }),
         prisma.designerProfile.findUnique({
@@ -188,38 +200,97 @@ export async function getDesignerDashboard() {
 
 // ---------------------------------------------------------------- stripe connect
 
+export type DesignerStripeState =
+    | "NOT_CONNECTED"
+    | "ONBOARDING_INCOMPLETE"
+    | "PENDING_VERIFICATION"
+    | "CAN_RECEIVE_PAYMENTS"
+    | "UNAVAILABLE"
+
+/**
+ * The real state of the Stripe account of the designer.
+ *
+ * The database only caches the account id, the state itself always comes from
+ * Stripe, so the dashboard can never show a stale "connected".
+ */
 export async function getDesignerStripeStatus() {
     const actor = await getLabActor()
-    if (!actor?.designerProfileId) return { isConnected: false }
+    if (!actor?.designerProfileId) {
+        return { state: "NOT_CONNECTED" as DesignerStripeState, isConnected: false }
+    }
 
     const designer = await prisma.designerProfile.findUnique({
         where: { id: actor.designerProfileId },
-        select: { stripeAccountId: true },
+        select: { stripeAccountId: true, isStripeEnabled: true },
     })
-    if (!designer?.stripeAccountId) return { isConnected: false }
+    if (!designer?.stripeAccountId) {
+        return { state: "NOT_CONNECTED" as DesignerStripeState, isConnected: false }
+    }
 
     try {
         const account = await stripe.accounts.retrieve(designer.stripeAccountId)
+        const detailsSubmitted = !!account.details_submitted
+        const payoutsEnabled = !!account.payouts_enabled
+        const chargesEnabled = !!account.charges_enabled
+        const currentlyDue = account.requirements?.currently_due ?? []
+
+        let state: DesignerStripeState
+        if (payoutsEnabled) state = "CAN_RECEIVE_PAYMENTS"
+        else if (!detailsSubmitted) state = "ONBOARDING_INCOMPLETE"
+        else if (currentlyDue.length > 0) state = "PENDING_VERIFICATION"
+        else state = "PENDING_VERIFICATION"
+
+        // Keep the cached flag in sync with Stripe.
+        const enabled = state === "CAN_RECEIVE_PAYMENTS"
+        if (designer.isStripeEnabled !== enabled) {
+            await prisma.designerProfile.update({
+                where: { id: actor.designerProfileId },
+                data: { isStripeEnabled: enabled },
+            })
+        }
+
         return {
-            isConnected: !!(account.details_submitted && account.payouts_enabled),
-            detailsSubmitted: account.details_submitted,
-            payoutsEnabled: account.payouts_enabled,
+            state,
+            isConnected: state === "CAN_RECEIVE_PAYMENTS",
+            detailsSubmitted,
+            payoutsEnabled,
+            chargesEnabled,
+            currentlyDue,
+            accountId: designer.stripeAccountId,
         }
     } catch (error: any) {
         console.error("[lab] Error retrieving designer Stripe account:", error)
-        return { isConnected: false }
+        if (error?.code === "resource_missing" || error?.message?.includes("No such account")) {
+            await prisma.designerProfile.update({
+                where: { id: actor.designerProfileId },
+                data: { stripeAccountId: null, isStripeEnabled: false },
+            })
+            return { state: "NOT_CONNECTED" as DesignerStripeState, isConnected: false }
+        }
+        return { state: "UNAVAILABLE" as DesignerStripeState, isConnected: false }
     }
 }
 
-export async function createDesignerStripeAccount() {
+/**
+ * Starts (or continues) the Stripe Connect onboarding of the designer.
+ *
+ * The account is created only once: the account id is kept in the database
+ * and the Stripe call uses an idempotency key. The onboarding link is
+ * single use and expires, so every call creates a fresh link.
+ */
+export async function startDesignerStripeOnboarding() {
     const session = await auth()
-    if (!session?.user?.id) throw new Error("Unauthorized")
+    if (!session?.user?.id) {
+        throw new LabActionError("UNAUTHENTICATED", "Πρέπει να είσαι συνδεδεμένος.", 401)
+    }
 
     const designer = await prisma.designerProfile.findUnique({
         where: { userId: session.user.id },
         include: { user: true },
     })
-    if (!designer) throw new Error("Designer profile not found")
+    if (!designer) {
+        throw new LabActionError("NOT_FOUND", "Δεν βρέθηκε προφίλ designer.", 404)
+    }
 
     let accountId = designer.stripeAccountId
 
@@ -227,7 +298,7 @@ export async function createDesignerStripeAccount() {
         try {
             await stripe.accounts.retrieve(accountId)
         } catch (error: any) {
-            if (error.code === "resource_missing" || error.message?.includes("No such account")) {
+            if (error?.code === "resource_missing" || error?.message?.includes("No such account")) {
                 accountId = null
                 await prisma.designerProfile.update({
                     where: { id: designer.id },
@@ -240,31 +311,53 @@ export async function createDesignerStripeAccount() {
     }
 
     if (!accountId) {
-        const account = await stripe.accounts.create({
-            type: "express",
-            country: "GR",
-            email: session.user.email || undefined,
-            capabilities: {
-                card_payments: { requested: true },
-                transfers: { requested: true },
+        const account = await stripe.accounts.create(
+            {
+                type: "express",
+                country: "GR",
+                email: session.user.email || undefined,
+                capabilities: {
+                    // Only transfers are needed: the platform collects the
+                    // money and pays the designer out.
+                    transfers: { requested: true },
+                },
+                metadata: { designerProfileId: designer.id },
             },
-            metadata: { designerProfileId: designer.id },
-        })
+            { idempotencyKey: `designer:acct:${designer.id}` }
+        )
         accountId = account.id
         await prisma.designerProfile.update({
             where: { id: designer.id },
-            data: { stripeAccountId: accountId },
+            data: { stripeAccountId: accountId, isStripeEnabled: false },
         })
+    }
+
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")
+    if (!baseUrl) {
+        throw new LabActionError(
+            "MISSING_ENV",
+            "Λείπει το NEXT_PUBLIC_APP_URL, δεν είναι δυνατή η σύνδεση με το Stripe.",
+            500
+        )
     }
 
     const accountLink = await stripe.accountLinks.create({
         account: accountId,
-        refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/lab/designer?stripe=refresh`,
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/lab/designer?stripe=return`,
+        refresh_url: `${baseUrl}/lab/designer?stripe=refresh`,
+        return_url: `${baseUrl}/lab/designer?stripe=return`,
         type: "account_onboarding",
     })
 
     redirect(accountLink.url)
+}
+
+/**
+ * Reads the state of the account after the onboarding and stores it. Called
+ * when the designer comes back from Stripe.
+ */
+export async function syncDesignerStripeAccount() {
+    const status = await getDesignerStripeStatus()
+    return status
 }
 
 // ---------------------------------------------------------------- lab (οδοντοτεχνικό εργαστήριο)

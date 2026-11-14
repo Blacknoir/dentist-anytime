@@ -11,7 +11,6 @@ import {
     MessageSquarePlus,
     PlayCircle,
     Send,
-    Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,16 +22,17 @@ import {
     requestRevision,
     startProduction,
     submitLabOffer,
-    uploadDesignerFiles,
 } from "@/app/actions/lab"
+import { ChunkedUploader } from "@/components/lab/chunked-uploader"
 import { cn } from "@/lib/utils"
+import { errorMessage } from "@/lib/error-message"
 
 function useActionState() {
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [message, setMessage] = useState<string | null>(null)
 
-    const run = async (fn: () => Promise<any>, success?: string) => {
+    const run = async (fn: () => Promise<unknown>, success?: string) => {
         setPending(true)
         setError(null)
         setMessage(null)
@@ -40,8 +40,8 @@ function useActionState() {
             await fn()
             if (success) setMessage(success)
             return true
-        } catch (err: any) {
-            setError(err?.message || "Η ενέργεια απέτυχε.")
+        } catch (err: unknown) {
+            setError(errorMessage(err))
             return false
         } finally {
             setPending(false)
@@ -212,51 +212,50 @@ export function CancelCaseButton({ caseId }: { caseId: string }) {
 /* ------------------------------------------------------------ deliverables */
 
 export function DeliverableUpload({ caseId }: { caseId: string }) {
-    const { pending, error, message, run } = useActionState()
-    const [files, setFiles] = useState<File[]>([])
+    const [uploaded, setUploaded] = useState(0)
 
     return (
         <div className="space-y-3">
-            <input
-                type="file"
-                multiple
+            <ChunkedUploader
+                caseId={caseId}
+                kind="OUTPUT_STL"
                 accept=".stl,.obj,.3mf,.zip,.step,.stp,.pdf"
-                onChange={(e) => setFiles(Array.from(e.target.files || []))}
-                className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-primary-700"
-            />
-            {files.length > 0 && (
-                <ul className="space-y-1 text-xs text-gray-500">
-                    {files.map((file, index) => (
-                        <li key={`${file.name}-${index}`}>
-                            {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
-                        </li>
-                    ))}
-                </ul>
-            )}
-            <Button
-                className="w-full"
-                disabled={pending || files.length === 0}
-                onClick={() => {
-                    const formData = new FormData()
-                    formData.append("kind", "OUTPUT_STL")
-                    files.forEach((file) => formData.append("files", file))
-                    run(() => uploadDesignerFiles(caseId, formData)).then((ok) => {
-                        if (ok) {
-                            setFiles([])
-                            setTimeout(() => window.location.reload(), 800)
-                        }
-                    })
+                label="Ανέβασε ολοκληρωμένα αρχεία"
+                onCompleted={() => {
+                    setUploaded((count) => count + 1)
+                    // The work is only marked as delivered when at least one
+                    // file was really stored.
+                    setTimeout(() => window.location.reload(), 900)
                 }}
-            >
-                {pending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                    <Upload className="h-4 w-4 mr-2" />
-                )}
-                Ανέβασε ολοκληρωμένα αρχεία
-            </Button>
-            {message && <p className="text-xs text-green-700">{message}</p>}
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            />
+            {uploaded > 0 && (
+                <p className="text-xs text-green-700">
+                    Τα αρχεία αποθηκεύτηκαν. Η εργασία σημειώθηκε ως παραδοτέα.
+                </p>
+            )}
+        </div>
+    )
+}
+
+/** The customer can add more files (photos, x-rays) to a running work. */
+export function CustomerFilesUpload({ caseId }: { caseId: string }) {
+    const [uploaded, setUploaded] = useState(0)
+
+    return (
+        <div className="space-y-3">
+            <ChunkedUploader
+                caseId={caseId}
+                kind="PHOTO"
+                accept=".jpg,.jpeg,.png,.dcm,.pdf,.txt,.doc,.docx,.stl"
+                label="Πρόσθετα αρχεία"
+                onCompleted={() => {
+                    setUploaded((count) => count + 1)
+                    setTimeout(() => window.location.reload(), 900)
+                }}
+            />
+            {uploaded > 0 && (
+                <p className="text-xs text-green-700">Το αρχείο προστέθηκε στην εργασία.</p>
+            )}
         </div>
     )
 }

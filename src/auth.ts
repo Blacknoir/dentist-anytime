@@ -6,6 +6,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import { assignPublicCode } from "@/lib/lab-public-code"
 import { stripAvatarFromToken } from "@/lib/avatar"
+import { sanitizeRedirectUrl } from "@/lib/auth-redirect"
 
 import { cookies } from "next/headers"
 
@@ -14,44 +15,6 @@ import { cookies } from "next/headers"
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin"
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "12345"
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@dentistanytime.com"
-
-const MAX_REDIRECT_LENGTH = 300
-
-/**
- * Normalises a redirect target: same origin only, no nested `callbackUrl`
- * parameters and a hard length limit. This keeps the auth cookies small and
- * prevents the "494 REQUEST_HEADER_TOO_LARGE" errors.
- */
-export function sanitizeRedirectUrl(url: string, baseUrl: string) {
-    let target = url
-
-    try {
-        const parsed = new URL(url, baseUrl)
-        const base = new URL(baseUrl)
-        if (parsed.origin !== base.origin) {
-            return base.origin
-        }
-        target = parsed.pathname + parsed.search
-    } catch {
-        target = url.startsWith("/") ? url : baseUrl
-    }
-
-    try {
-        const parsed = new URL(target, baseUrl)
-        if (parsed.searchParams.has("callbackUrl")) {
-            parsed.searchParams.delete("callbackUrl")
-        }
-        target = parsed.pathname + (parsed.search ? parsed.search : "")
-    } catch {
-        // keep the raw value
-    }
-
-    if (target.length > MAX_REDIRECT_LENGTH) {
-        target = target.slice(0, MAX_REDIRECT_LENGTH)
-    }
-
-    return target
-}
 
 // Creates the profile that matches the selected role (dentist / lab / CAD designer).
 async function ensureRoleProfile(userId: string, role: string) {

@@ -10,6 +10,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:db": "docker run -d --name dentora-test-db -e POSTGRES_PASSWORD=dentora_test -e POSTGRES_USER=dentora -e POSTGRES_DB=dentora_test -p 5433:5432 postgres:16-alpine && prisma migrate deploy",
     "seed:lab": "tsx prisma/seed-lab.ts",
     "postinstall": "prisma generate"
   },
@@ -39,6 +43,7 @@
     "react-dom": "19.2.3",
     "react-hook-form": "^7.70.0",
     "recharts": "^3.6.0",
+    "server-only": "^0.0.1",
     "stripe": "^20.2.0",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.3.5"
@@ -48,12 +53,14 @@
     "@types/node": "^24.19.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/ui": "^5.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "prisma": "^5.15.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

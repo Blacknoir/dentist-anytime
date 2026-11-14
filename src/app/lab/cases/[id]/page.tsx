@@ -22,6 +22,7 @@ import {
     AcceptOfferButton,
     ApproveDeliveryButton,
     CancelCaseButton,
+    CustomerFilesUpload,
     DeliverableUpload,
     FileHint,
     InlineNotice,
@@ -481,6 +482,12 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                         </>
                                     ) : canOffer ? (
                                         <>
+                                            {target.requestedDesignerId === actor?.designerProfileId && (
+                                                <InlineNotice tone="info">
+                                                    Ο πελάτης απευθύνεται σε εσένα για αυτή την
+                                                    εργασία. Στείλε την τιμή σου για να ανατεθεί.
+                                                </InlineNotice>
+                                            )}
                                             <p className="text-sm text-gray-600">
                                                 Στείλε τιμή και χρόνο παράδοσης. Ο πελάτης θα επιλέξει ανάμεσα στις
                                                 προσφορές.
@@ -497,6 +504,21 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                                 : "Δεν μπορείς να κάνεις προσφορά σε αυτή την εργασία."}
                                         </p>
                                     )}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* The customer can add more files to a running work */}
+                        {isOwner && ["OPEN", "QUOTED", "ASSIGNED", "IN_PRODUCTION"].includes(target.status) && (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-base">Πρόσθετα αρχεία</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <p className="text-sm text-gray-600">
+                                        Πρόσθεσε φωτογραφίες, ακτινογραφίες ή οδηγίες στην εργασία.
+                                    </p>
+                                    <CustomerFilesUpload caseId={target.id} />
                                 </CardContent>
                             </Card>
                         )}

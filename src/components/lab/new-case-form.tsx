@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { MATERIALS, PRIORITIES, SHADES, WORK_TYPES } from "@/lib/lab"
+import { uploadFileInChunks } from "@/lib/lab-upload-client"
+import { errorMessage } from "@/lib/error-message"
 import { cn } from "@/lib/utils"
 
 const MAX_SIZE_MB = 120
@@ -32,6 +34,9 @@ export default function NewCaseForm() {
         description: "",
     })
     const [files, setFiles] = useState<File[]>([])
+    const [fileStates, setFileStates] = useState<
+        { name: string; status: "uploading" | "done" | "error"; progress: number; error?: string }[]
+    >([])
     const [progress, setProgress] = useState(0)
     const [uploading, setUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -39,9 +44,11 @@ export default function NewCaseForm() {
 
     const designerId = useMemo(() => searchParams.get("designer") || "", [searchParams])
 
-    const isCustomer = (session?.user as any)?.role === "DENTIST" || (session?.user as any)?.role === "LAB"
+    const sessionRole = (session?.user as { role?: string } | undefined)?.role
+    const isCustomer = sessionRole === "DENTIST" || sessionRole === "LAB"
 
-    const update = (key: string, value: any) => setForm((prev) => ({ ...prev, [key]: value }))
+    const update = (key: string, value: string | number | null) =>
+        setForm((prev) => ({ ...prev, [key]: value }))
 
     const handleFiles = (list: FileList | null) => {
         if (!list) return
@@ -55,7 +62,7 @@ export default function NewCaseForm() {
         setFiles(next)
     }
 
-    const handleSubmit = (event: React.FormEvent) => {
+    const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault()
         if (!session?.user?.id) {
             setError("Πρέπει να είσαι συνδεδεμένος για να δημιουργήσεις εργασία.")
@@ -65,53 +72,111 @@ export default function NewCaseForm() {
             setError("Περιέγραψε την εργασία.")
             return
         }
-
-        const body = new FormData()
-        body.append("type", form.type)
-        body.append("material", form.material)
-        body.append("shade", form.shade)
-        body.append("units", String(form.units))
-        body.append("priority", form.priority)
-        body.append("deadline", form.deadline)
-        body.append("title", form.title)
-        body.append("description", form.description)
-        if (designerId) body.append("designerId", designerId)
-        files.forEach((file) => body.append("files", file))
+        if (uploading) return
 
         setUploading(true)
         setError(null)
         setProgress(0)
+        setFileStates([])
 
-        const request = new XMLHttpRequest()
-        request.open("POST", "/api/lab/cases")
+        // The id of the submit: a retry after a connection problem finds the
+        // work that was already created instead of creating a second one.
+        const requestId =
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-        request.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-                setProgress(Math.round((event.loaded / event.total) * 100))
+        try {
+            const response = await fetch("/api/lab/cases", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                    type: form.type,
+                    material: form.material,
+                    shade: form.shade,
+                    units: form.units,
+                    priority: form.priority,
+                    deadline: form.deadline,
+                    title: form.title,
+                    description: form.description,
+                    ...(designerId ? { designerId } : {}),
+                    clientRequestId: requestId,
+                }),
+            })
+
+            const payload = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                throw new Error(payload?.error || "Η δημιουργία της εργασίας απέτυχε.")
             }
-        }
 
-        request.onload = () => {
-            setUploading(false)
-            if (request.status >= 200 && request.status < 300) {
-                const payload = JSON.parse(request.responseText || "{}")
-                setDone(payload.code || "OK")
-            } else {
+            const caseId = payload.id as string
+
+            // The files are uploaded one after the other in chunks. The work
+            // exists even when a file fails: the failed file can be uploaded
+            // again from the page of the work.
+            let uploaded = 0
+            const failures: string[] = []
+
+            for (const file of files) {
+                setFileStates((prev) => [
+                    ...prev,
+                    { name: file.name, status: "uploading", progress: 0 },
+                ])
                 try {
-                    const payload = JSON.parse(request.responseText || "{}")
-                    setError(payload.error || "Η δημιουργία της εργασίας απέτυχε.")
-                } catch {
-                    setError("Η δημιουργία της εργασίας απέτυχε.")
+                    await uploadFileInChunks({
+                        file,
+                        caseId,
+                        kind: "INPUT_STL",
+                        onProgress: (percent) => {
+                            setFileStates((prev) =>
+                                prev.map((item, index) =>
+                                    index === prev.length - 1 ? { ...item, progress: percent } : item
+                                )
+                            )
+                            setProgress(
+                                Math.round(((uploaded + percent / 100) / Math.max(files.length, 1)) * 100)
+                            )
+                        },
+                    })
+                    uploaded += 1
+                    setFileStates((prev) =>
+                        prev.map((item, index) =>
+                            index === prev.length - 1
+                                ? { ...item, status: "done", progress: 100 }
+                                : item
+                        )
+                    )
+                } catch (uploadError: unknown) {
+                    failures.push(file.name)
+                    setFileStates((prev) =>
+                        prev.map((item, index) =>
+                            index === prev.length - 1
+                                ? {
+                                      ...item,
+                                      status: "error",
+                                      error: errorMessage(uploadError, "Η μεταφορά απέτυχε."),
+                                  }
+                                : item
+                        )
+                    )
                 }
             }
-        }
 
-        request.onerror = () => {
+            setProgress(100)
+
+            if (failures.length === 0) {
+                setDone(payload.code || "OK")
+            } else {
+                setDone(payload.code || "OK")
+                setError(
+                    `Η εργασία δημιουργήθηκε, αλλά ${failures.length} αρχεία δεν μεταφέρθηκαν. Μπορείς να τα ανεβάσεις ξανά από τη σελίδα της εργασίας.`
+                )
+            }
+        } catch (submitError: unknown) {
+            setError(errorMessage(submitError, "Η δημιουργία της εργασίας απέτυχε."))
+        } finally {
             setUploading(false)
-            setError("Η σύνδεση διακόπηκε. Δοκίμασε ξανά.")
         }
-
-        request.send(body)
     }
 
     if (status === "loading") {
@@ -141,7 +206,7 @@ export default function NewCaseForm() {
             <div className="pt-24 pb-20 container mx-auto px-4 max-w-xl text-center space-y-4">
                 <h1 className="text-2xl font-bold text-gray-900">Λάθος ρόλος</h1>
                 <p className="text-gray-600">
-                    Ο λογαριασμός σου είναι {String((session.user as any)?.role).toLowerCase()}. Οι εργασίες τις
+                    Ο λογαριασμός σου είναι {String(sessionRole).toLowerCase()}. Οι εργασίες τις
                     δημιουργούν οδοντίατρες και εργαστήρια.
                 </p>
                 <Button asChild>
@@ -323,28 +388,58 @@ export default function NewCaseForm() {
 
                                 {files.length > 0 && (
                                     <div className="space-y-2">
-                                        {files.map((file, index) => (
-                                            <div
-                                                key={`${file.name}-${index}`}
-                                                className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-sm"
-                                            >
-                                                <span className="truncate">{file.name}</span>
-                                                <span className="flex items-center gap-3">
-                                                    <span className="text-xs text-gray-400">
-                                                        {(file.size / 1024 / 1024).toFixed(1)} MB
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setFiles((prev) => prev.filter((_, i) => i !== index))
-                                                        }
-                                                        className="text-gray-400 hover:text-red-600"
-                                                    >
-                                                        <X className="h-4 w-4" />
-                                                    </button>
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {files.map((file, index) => {
+                                            const state = fileStates[index]
+                                            return (
+                                                <div
+                                                    key={`${file.name}-${index}`}
+                                                    className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2 text-sm"
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="truncate flex items-center gap-2">
+                                                            {state?.status === "done" && (
+                                                                <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                                                            )}
+                                                            {state?.status === "error" && (
+                                                                <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                                                            )}
+                                                            {state?.status === "uploading" && (
+                                                                <Loader2 className="h-4 w-4 text-primary-600 animate-spin shrink-0" />
+                                                            )}
+                                                            <span className="truncate">{file.name}</span>
+                                                        </span>
+                                                        <span className="flex items-center gap-3">
+                                                            <span className="text-xs text-gray-400">
+                                                                {(file.size / 1024 / 1024).toFixed(1)} MB
+                                                                {state?.status === "uploading"
+                                                                    ? ` · ${state.progress}%`
+                                                                    : ""}
+                                                            </span>
+                                                            {!uploading && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        setFiles((prev) =>
+                                                                            prev.filter(
+                                                                                (_, i) => i !== index
+                                                                            )
+                                                                        )
+                                                                    }
+                                                                    className="text-gray-400 hover:text-red-600"
+                                                                >
+                                                                    <X className="h-4 w-4" />
+                                                                </button>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    {state?.status === "error" && (
+                                                        <p className="mt-1 text-xs text-red-600">
+                                                            {state.error}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
                                     </div>
                                 )}
                             </CardContent>

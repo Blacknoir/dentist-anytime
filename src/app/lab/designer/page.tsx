@@ -17,19 +17,30 @@ import { getLabActor } from "@/app/actions/lab"
 import { getDesignerDashboard, getDesignerStripeStatus } from "@/app/actions/lab-designer"
 import { FileRow, PaymentBadge, StatusBadge } from "@/components/lab/lab-components"
 import { DeliverableUpload, InlineNotice, OfferForm, StartProductionButton } from "@/components/lab/case-panel"
+import { StripeConnectCard } from "@/components/lab/stripe-connect-card"
 import { euros, formatDate, partyLabel } from "@/lib/lab"
 
 export const dynamic = "force-dynamic"
 
-export default async function DesignerDashboardPage() {
+export default async function DesignerDashboardPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ stripe?: string }>
+}) {
     const actor = await getLabActor()
     if (!actor?.isDesigner) redirect("/lab/register")
 
-    const [dashboard, stripeStatus] = await Promise.all([getDesignerDashboard(), getDesignerStripeStatus()])
+    const [dashboard, stripeStatus, params] = await Promise.all([
+        getDesignerDashboard(),
+        getDesignerStripeStatus(),
+        searchParams,
+    ])
     if (!dashboard) redirect("/lab/register")
 
     const { assignedCases, offers, openCases, profile } = dashboard
     const pendingOffers = offers.filter((offer) => offer.status === "PENDING")
+    const stripeReturn = params?.stripe === "return"
+    const stripeRefresh = params?.stripe === "refresh"
 
     return (
         <div className="pt-14 pb-20">
@@ -73,23 +84,22 @@ export default async function DesignerDashboardPage() {
                 </div>
 
                 {/* Stripe */}
-                <div className="mt-6">
-                    {stripeStatus.isConnected ? (
-                        <InlineNotice tone="success">
-                            <CheckCircle2 className="h-3.5 w-3.5" /> Το Stripe είναι συνδεδεμένο — μπορείς να
-                            λαμβάνεις πληρωμές.
+                <div className="mt-6 space-y-3">
+                    {stripeReturn && (
+                        <InlineNotice tone="info">
+                            Επιστρέψας από το Stripe. Ο λογαριασμός σου ελέγχθηκε ξανά.
                         </InlineNotice>
-                    ) : (
-                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex flex-wrap items-center justify-between gap-3">
-                            <span className="flex items-start gap-2">
-                                <CreditCard className="h-4 w-4 mt-0.5 shrink-0" />
-                                Σύνδεσε το Stripe για να λαμβάνεις τις πληρωμές των εργασιών σου.
-                            </span>
-                            <Button size="sm" variant="outline" asChild>
-                                <Link href="/lab/designer?stripe=connect">Σύνδεση Stripe</Link>
-                            </Button>
-                        </div>
                     )}
+                    {stripeRefresh && (
+                        <InlineNotice tone="warn">
+                            Ο σύνδεσμος onboarding έχει λήξει. Πάτησε «Συνέχισε τη σύνδεση» για να
+                            δημιουργηθεί νέος.
+                        </InlineNotice>
+                    )}
+                    <StripeConnectCard
+                        state={stripeStatus.state}
+                        currentlyDue={stripeStatus.currentlyDue ?? []}
+                    />
                 </div>
 
                 {/* Assigned cases */}

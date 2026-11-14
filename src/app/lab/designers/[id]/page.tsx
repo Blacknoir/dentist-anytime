@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { prisma } from "@/lib/prisma"
 import { Stars } from "@/components/lab/lab-components"
+import { PortfolioGallery } from "@/components/lab/portfolio-gallery"
+import { getPortfolio } from "@/lib/lab-portfolio"
 import { codeInitials, euros } from "@/lib/lab"
 
 export const dynamic = "force-dynamic"
@@ -21,6 +23,8 @@ export default async function DesignerProfilePage({ params }: { params: Promise<
     })
 
     if (!designer) notFound()
+
+    const portfolio = await getPortfolio("DESIGNER", designer.id)
 
     return (
         <div className="pt-14 pb-20">
@@ -111,14 +115,27 @@ export default async function DesignerProfilePage({ params }: { params: Promise<
                         {designer.bio && (
                             <Card>
                                 <CardHeader>
-                                    <CardTitle className="text-base">Παρουσίαση</CardTitle>
+                                    <CardTitle className="text-base">Σχετικά με εμένα</CardTitle>
                                 </CardHeader>
                                 <CardContent>
                                     <p className="text-sm text-gray-600 whitespace-pre-line">{designer.bio}</p>
                                 </CardContent>
                             </Card>
                         )}
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-base">Portfolio εργασιών</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <PortfolioGallery
+                                    items={portfolio}
+                                    emptyLabel="Δεν υπάρχουν ακόμα δημοσιευμένες εικόνες."
+                                />
+                            </CardContent>
+                        </Card>
                     </div>
+
 
                     <div className="space-y-6">
                         <Card>
