@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { prisma } from "@/lib/prisma"
 
-const transferCreate = vi.fn(async (_params: unknown, _options?: unknown) => ({ id: "tr_test" }))
-const refundCreate = vi.fn(async (_params: unknown, _options?: unknown) => ({ id: "re_test" }))
-const paymentIntentCreate = vi.fn(async (_params: unknown, _options?: unknown) => ({
+const transferCreate = vi.fn(async (...args: unknown[]) => ({ id: "tr_test", args }))
+const refundCreate = vi.fn(async (...args: unknown[]) => ({ id: "re_test", args }))
+const paymentIntentCreate = vi.fn(async (...args: unknown[]) => ({
     id: "pi_test",
     client_secret: "secret_test",
+    args,
 }))
 
 vi.mock("@/auth", () => ({

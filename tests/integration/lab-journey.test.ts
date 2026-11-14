@@ -10,14 +10,15 @@ vi.mock("@/auth", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }))
 
-const transfers = vi.fn(async (_params: unknown, _options?: unknown) => ({ id: "tr_test" }))
+const transfers = vi.fn(async (...args: unknown[]) => ({ id: "tr_test", args }))
 
 vi.mock("@/lib/stripe", () => ({
     stripe: {
         paymentIntents: {
-            create: vi.fn(async (_params: unknown, _options?: unknown) => ({
+            create: vi.fn(async (...args: unknown[]) => ({
                 id: "pi_test",
                 client_secret: "secret_test",
+                args,
             })),
         },
         transfers: { create: transfers },
