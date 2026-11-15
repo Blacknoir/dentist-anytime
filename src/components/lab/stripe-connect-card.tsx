@@ -5,15 +5,6 @@ import { AlertCircle, CheckCircle2, CreditCard, Loader2, RefreshCw } from "lucid
 import { Button } from "@/components/ui/button"
 import { startDesignerStripeOnboarding } from "@/app/actions/lab-designer"
 import type { DesignerStripeState } from "@/app/actions/lab-designer"
-import { errorMessage } from "@/lib/error-message"
-
-function isRedirect(error: unknown) {
-    // Next.js uses a thrown control flow exception for redirects. It is not
-    // an error of the action and must not be shown to the user.
-    if (typeof error !== "object" || error === null || !("digest" in error)) return false
-    const digest = (error as { digest?: unknown }).digest
-    return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")
-}
 
 export function StripeConnectCard({
     state,
@@ -29,13 +20,23 @@ export function StripeConnectCard({
         setError(null)
         startTransition(async () => {
             try {
-                await startDesignerStripeOnboarding()
-            } catch (err: unknown) {
-                if (isRedirect(err)) return
-                setError(errorMessage(err, "Η σύνδεση με το Stripe απέτυχε. Δοκίμασε ξανά."))
+                const result = await startDesignerStripeOnboarding()
+                if (result.ok) {
+                    window.location.assign(result.url)
+                } else {
+                    setError(result.message)
+                }
+            } catch {
+                setError("Η σύνδεση με το Stripe απέτυχε. Δοκίμασε ξανά.")
             }
         })
     }
+    const errorNotice = error && (
+        <p role="alert" className="w-full text-xs text-red-600 flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5" />
+            {error}
+        </p>
+    )
 
     if (state === "CAN_RECEIVE_PAYMENTS") {
         return (
@@ -67,6 +68,7 @@ export function StripeConnectCard({
                     {pending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                     Άνοιξε το Stripe
                 </Button>
+                {errorNotice}
             </div>
         )
     }
@@ -86,6 +88,7 @@ export function StripeConnectCard({
                     {pending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                     Άνοιξε το Stripe
                 </Button>
+                {errorNotice}
             </div>
         )
     }
@@ -116,6 +119,7 @@ export function StripeConnectCard({
                     {pending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                     Δοκίμασε ξανά
                 </Button>
+                {errorNotice}
             </div>
         )
     }
@@ -138,12 +142,7 @@ export function StripeConnectCard({
                 )}
                 {isIncomplete ? "Συνέχισε τη σύνδεση" : "Σύνδεση Stripe"}
             </Button>
-            {error && (
-                <p className="w-full text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    {error}
-                </p>
-            )}
+            {errorNotice}
         </div>
     )
 }

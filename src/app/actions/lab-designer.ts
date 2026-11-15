@@ -1,8 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
-import { auth } from "@/auth"
+import type Stripe from "stripe"
 import { prisma } from "@/lib/prisma"
 import { redactContactDetails } from "@/lib/lab"
 import {
@@ -12,7 +11,6 @@ import {
     stripe,
 } from "@/lib/stripe"
 import { getLabActor } from "@/lib/lab-domain"
-import { LabActionError } from "@/lib/lab-domain"
 
 export async function getDesignerProfile() {
     const actor = await getLabActor()
@@ -126,7 +124,7 @@ export async function updateDesignerServices(
 
 export async function getDesignerDashboard() {
     const actor = await getLabActor()
-    if (!actor?.designerProfileId) return null
+    if (!actor?.isDesigner || !actor.designerProfileId) return null
 
     const designerProfileId = actor.designerProfileId
 
@@ -161,15 +159,13 @@ export async function getDesignerDashboard() {
             },
         }),
         prisma.labCase.findMany({
-            // Works that still have no assignment. A work with a price on the
-            // table (QUOTED) stays visible, so the designer can update their
-            // own offer.
             where: {
                 status: { in: ["OPEN", "QUOTED"] },
+                customerId: { not: actor.userId },
+                assignedDesignerId: null,
                 OR: [
-                    { assignedDesignerId: null },
+                    { requestedDesignerId: null },
                     { requestedDesignerId: designerProfileId },
-                    { assignedDesignerId: designerProfileId },
                 ],
             },
             orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
@@ -228,7 +224,7 @@ export type DesignerStripeState =
  */
 export async function getDesignerStripeStatus() {
     const actor = await getLabActor()
-    if (!actor?.designerProfileId) {
+    if (!actor?.isDesigner || !actor.designerProfileId) {
         return { state: "NOT_CONNECTED" as DesignerStripeState, isConnected: false }
     }
 
@@ -243,18 +239,25 @@ export async function getDesignerStripeStatus() {
     try {
         const account = await stripe.accounts.retrieve(designer.stripeAccountId)
         const state = readConnectAccountState(account, "PLATFORM_TRANSFER")
+        const onboardingState: DesignerStripeState = state.usable
+            ? "CAN_RECEIVE_PAYMENTS"
+            : state.disabledReason === "requirements.pending_verification"
+              ? "PENDING_VERIFICATION"
+              : state.disabledReason === "requirements.past_due" || state.disabledReason === "requirements.fields_needed"
+                ? "ONBOARDING_INCOMPLETE"
+                : state.reason
 
         // Keep the cached flag in sync with Stripe.
         const enabled = state.usable
         if (designer.isStripeEnabled !== enabled) {
-            await prisma.designerProfile.update({
-                where: { id: actor.designerProfileId },
+            await prisma.designerProfile.updateMany({
+                where: { id: actor.designerProfileId, stripeAccountId: designer.stripeAccountId },
                 data: { isStripeEnabled: enabled },
             })
         }
 
         return {
-            state: state.reason as DesignerStripeState,
+            state: onboardingState,
             isConnected: state.usable,
             detailsSubmitted: state.detailsSubmitted,
             transfersActive: state.transfersActive,
@@ -262,13 +265,9 @@ export async function getDesignerStripeStatus() {
             currentlyDue: state.currentlyDue,
             accountId: designer.stripeAccountId,
         }
-    } catch (error: any) {
+    } catch (error) {
         console.error("[lab] Error retrieving designer Stripe account:", error)
-        if (error?.code === "resource_missing" || error?.message?.includes("No such account")) {
-            await prisma.designerProfile.update({
-                where: { id: actor.designerProfileId },
-                data: { stripeAccountId: null, isStripeEnabled: false },
-            })
+        if (isMissingStripeAccount(error)) {
             return { state: "NOT_CONNECTED" as DesignerStripeState, isConnected: false }
         }
         return { state: "UNAVAILABLE" as DesignerStripeState, isConnected: false }
@@ -282,78 +281,88 @@ export async function getDesignerStripeStatus() {
  * and the Stripe call uses an idempotency key. The onboarding link is
  * single use and expires, so every call creates a fresh link.
  */
-export async function startDesignerStripeOnboarding() {
-    const session = await auth()
-    if (!session?.user?.id) {
-        throw new LabActionError("UNAUTHENTICATED", "Πρέπει να είσαι συνδεδεμένος.", 401)
-    }
+export async function startDesignerStripeOnboarding(): Promise<
+    { ok: true; url: string } | { ok: false; message: string }
+> {
+    try {
+        const actor = await getLabActor()
+        if (!actor) return { ok: false, message: "Πρέπει να είσαι συνδεδεμένος." }
+        if (!actor.isDesigner || !actor.designerProfileId) {
+            return { ok: false, message: "Χρειάζεται ενεργό προφίλ CAD designer για τη σύνδεση με το Stripe." }
+        }
 
-    const designer = await prisma.designerProfile.findUnique({
-        where: { userId: session.user.id },
-        include: { user: true },
-    })
-    if (!designer) {
-        throw new LabActionError("NOT_FOUND", "Δεν βρέθηκε προφίλ designer.", 404)
-    }
+        const baseUrl = platformUrl()
+        if (!baseUrl) {
+            console.error("[lab] Stripe Connect is missing NEXT_PUBLIC_APP_URL")
+            return { ok: false, message: "Η σύνδεση με το Stripe δεν είναι διαθέσιμη αυτή τη στιγμή." }
+        }
 
-    let accountId = designer.stripeAccountId
+        const designer = await prisma.designerProfile.findUniqueOrThrow({
+            where: { id: actor.designerProfileId },
+            select: { id: true, stripeAccountId: true },
+        })
+        let accountId = designer.stripeAccountId
 
-    if (accountId) {
-        try {
-            await stripe.accounts.retrieve(accountId)
-        } catch (error: any) {
-            if (error?.code === "resource_missing" || error?.message?.includes("No such account")) {
+        if (accountId) {
+            try {
+                await stripe.accounts.retrieve(accountId)
+            } catch (error) {
+                if (!isMissingStripeAccount(error)) throw error
                 accountId = null
-                await prisma.designerProfile.update({
-                    where: { id: designer.id },
-                    data: { stripeAccountId: null, isStripeEnabled: false },
-                })
-            } else {
-                throw error
             }
         }
-    }
 
-    if (!accountId) {
-        const account = await stripe.accounts.create(
-            {
-                type: "express",
-                country: "GR",
-                email: session.user.email || undefined,
-                capabilities: {
-                    // The Lab transfers the money to the designer: the account
-                    // has to be able to receive transfers. The card payments
-                    // capability is not needed (and would ask for more data
-                    // from the designer than necessary).
-                    transfers: { requested: true },
-                },
-                metadata: { designerProfileId: designer.id },
-            },
-            { idempotencyKey: `designer:acct:${designer.id}` }
-        )
-        accountId = account.id
-        await prisma.designerProfile.update({
-            where: { id: designer.id },
-            data: { stripeAccountId: accountId, isStripeEnabled: false },
+        if (!accountId) {
+            const key = designer.stripeAccountId
+                ? `designer:acct:${designer.id}:${designer.stripeAccountId}`
+                : `designer:acct:${designer.id}`
+            const account = await createDesignerConnectAccount(designer.id, actor.email, key)
+            accountId = account.id
+            await prisma.designerProfile.update({
+                where: { id: designer.id },
+                data: { stripeAccountId: accountId, isStripeEnabled: false },
+            })
+        }
+
+        const accountLink = await createConnectOnboardingLink({
+            accountId,
+            refreshUrl: `${baseUrl}/lab/designer?stripe=refresh`,
+            returnUrl: `${baseUrl}/lab/designer?stripe=return`,
         })
+        return { ok: true, url: accountLink.url }
+    } catch (error) {
+        console.error("[lab] Could not start Stripe Connect for designer:", error)
+        return { ok: false, message: "Δεν ήταν δυνατή η σύνδεση με το Stripe. Δοκίμασε ξανά σε λίγο." }
     }
+}
 
-    const baseUrl = platformUrl()
-    if (!baseUrl) {
-        throw new LabActionError(
-            "MISSING_ENV",
-            "Λείπει το NEXT_PUBLIC_APP_URL, δεν είναι δυνατή η σύνδεση με το Stripe.",
-            500
-        )
+async function createDesignerConnectAccount(designerId: string, email: string, idempotencyKey: string) {
+    const params: Stripe.AccountCreateParams = {
+        type: "express",
+        country: "GR",
+        email: email || undefined,
+        capabilities: { transfers: { requested: true } },
+        metadata: { designerProfileId: designerId },
     }
+    try {
+        return await stripe.accounts.create(params, { idempotencyKey })
+    } catch (error) {
+        // Some platforms need Stripe approval for transfer-only Express accounts.
+        // Use the same capabilities as dentist onboarding only on this specific rejection.
+        if (!(error instanceof Error && "type" in error && error.type === "StripeInvalidRequestError" &&
+            /transfers.*without.*card_payments/i.test(error.message))) throw error
 
-    const accountLink = await createConnectOnboardingLink({
-        accountId,
-        refreshUrl: `${baseUrl}/lab/designer?stripe=refresh`,
-        returnUrl: `${baseUrl}/lab/designer?stripe=return`,
-    })
+        return stripe.accounts.create({
+            ...params,
+            capabilities: { transfers: { requested: true }, card_payments: { requested: true } },
+        }, { idempotencyKey: `${idempotencyKey}:with-card-payments` })
+    }
+}
 
-    redirect(accountLink.url)
+function isMissingStripeAccount(error: unknown) {
+    if (typeof error !== "object" || error === null) return false
+    if ("code" in error && error.code === "resource_missing") return true
+    return error instanceof Error && error.message.includes("No such account")
 }
 
 /**

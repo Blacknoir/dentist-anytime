@@ -203,12 +203,29 @@ export async function getLabCases(filter?: {
 
 // ---------------------------------------------------------------- offers
 
-export async function submitLabOffer(input: {
+type LabOfferInput = {
     caseId: string
     price: number
     leadTimeDays: number
     message?: string
-}) {
+}
+
+export async function submitLabOffer(input: LabOfferInput): Promise<
+    { ok: true } | { ok: false; code: string; message: string }
+> {
+    try {
+        await saveLabOffer(input)
+        return { ok: true }
+    } catch (error) {
+        if (error instanceof LabActionError) {
+            return { ok: false, code: error.code, message: error.message }
+        }
+        console.error("[lab] Could not submit an offer:", error)
+        return { ok: false, code: "UNAVAILABLE", message: "Η προσφορά δεν μπόρεσε να καταχωριστεί. Δοκίμασε ξανά." }
+    }
+}
+
+async function saveLabOffer(input: LabOfferInput) {
     const actor = await requireActor()
     if (!actor.isDesigner || !actor.designerProfileId) {
         throw new LabActionError(
@@ -302,7 +319,7 @@ export async function submitLabOffer(input: {
 
     revalidatePath(`/lab/cases/${input.caseId}`)
     revalidatePath("/lab/cases")
-    return { ok: true }
+    revalidatePath("/lab/designer")
 }
 
 /**

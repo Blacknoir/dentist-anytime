@@ -66,7 +66,9 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
           : partyLabel(target.customer)
 
     const canOffer =
-        !!actor?.isDesigner && !isOwner && ["OPEN", "QUOTED"].includes(target.status) && !isAssigned
+        !!actor?.isDesigner && !isOwner && ["OPEN", "QUOTED"].includes(target.status) &&
+        !target.assignedDesignerId &&
+        (!target.requestedDesignerId || target.requestedDesignerId === actor.designerProfileId)
     const canPay = isOwner && target.status === "ASSIGNED" && ["UNPAID", "FAILED"].includes(target.paymentStatus)
     const canApprove = (isOwner || isAdmin) && target.status === "DELIVERED"
     const canRequestRevision = (isOwner || isAdmin) && target.status === "DELIVERED"

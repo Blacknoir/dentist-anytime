@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
     AlertCircle,
@@ -56,31 +57,54 @@ function useActionState() {
 /* ------------------------------------------------------------------ offers */
 
 export function OfferForm({ caseId, priceHint, units }: { caseId: string; priceHint?: number | null; units: number }) {
-    const { pending, error, run } = useActionState()
+    const [pending, startTransition] = useTransition()
+    const [notice, setNotice] = useState<{ text: string; code?: string } | null>(null)
+    const router = useRouter()
     const [price, setPrice] = useState(priceHint ? String(priceHint) : "")
     const [leadTime, setLeadTime] = useState("3")
     const [message, setMessage] = useState("")
+    const submit = () => {
+        setNotice(null)
+        startTransition(async () => {
+            try {
+                const result = await submitLabOffer({
+                    caseId,
+                    price: Number(price),
+                    leadTimeDays: Number(leadTime) || 3,
+                    message,
+                })
+                if (!result.ok) {
+                    setNotice({ text: result.message, code: result.code })
+                    return
+                }
+                setNotice({ text: "Η προσφορά καταχωρίστηκε." })
+                router.refresh()
+            } catch {
+                setNotice({ text: "Η προσφορά δεν μπόρεσε να καταχωριστεί. Δοκίμασε ξανά.", code: "UNAVAILABLE" })
+            }
+        })
+    }
 
     return (
         <div className="space-y-3">
             <div className="grid gap-2 sm:grid-cols-2">
                 <label className="space-y-1 text-sm">
                     <span>Συνολική τιμή ({units} τεμ.) σε €</span>
-                <Input
-                    placeholder="π.χ. 120"
-                    inputMode="numeric"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                />
+                    <Input
+                        placeholder="π.χ. 120"
+                        inputMode="numeric"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                    />
                 </label>
                 <label className="space-y-1 text-sm">
                     <span>Χρόνος παράδοσης σε ημέρες</span>
-                <Input
-                    placeholder="π.χ. 3"
-                    inputMode="numeric"
-                    value={leadTime}
-                    onChange={(e) => setLeadTime(e.target.value)}
-                />
+                    <Input
+                        placeholder="π.χ. 3"
+                        inputMode="numeric"
+                        value={leadTime}
+                        onChange={(e) => setLeadTime(e.target.value)}
+                    />
                 </label>
             </div>
             <Textarea
@@ -96,21 +120,21 @@ export function OfferForm({ caseId, priceHint, units }: { caseId: string; priceH
             <Button
                 className="w-full"
                 disabled={pending || !price}
-                onClick={() =>
-                    run(() =>
-                        submitLabOffer({
-                            caseId,
-                            price: Number(price),
-                            leadTimeDays: Number(leadTime) || 3,
-                            message,
-                        })
-                    ).then((ok) => ok && window.location.reload())
-                }
+                onClick={submit}
             >
                 {pending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
                 Στείλε προσφορά
             </Button>
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {notice?.code === "CONSENTS_MISSING" ? (
+                <p role="alert" className="text-sm text-red-600">
+                    Για να στείλεις προσφορά, χρειάζεται να{" "}
+                    <Link href="/lab/legal/consent" className="font-medium underline">αποδεχτείς τα υποχρεωτικά έγγραφα του Lab</Link>.
+                </p>
+            ) : notice && (
+                <p role={notice.code ? "alert" : "status"} className={notice.code ? "text-sm text-red-600" : "text-sm text-green-700"}>
+                    {notice.text}
+                </p>
+            )}
         </div>
     )
 }

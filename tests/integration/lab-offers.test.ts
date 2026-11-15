@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { prisma } from "@/lib/prisma"
+import { createStripeTestDouble } from "../mocks/stripe-strict"
 
 // The session of the current user is mocked: the actions read the user from
 // the session.
 const session = { userId: "" }
+const stripeDouble = createStripeTestDouble()
 
 vi.mock("@/auth", () => ({
     auth: async () => ({ user: { id: session.userId, email: "test@dentora.gr" } }),
@@ -11,19 +13,22 @@ vi.mock("@/auth", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }))
 
-vi.mock("@/lib/stripe", () => ({
-    stripe: {
-        paymentIntents: { create: vi.fn(async () => ({ id: "pi_test", client_secret: "secret" })) },
-        transfers: { create: vi.fn(async () => ({ id: "tr_test" })) },
-        refunds: { create: vi.fn(async () => ({ id: "re_test" })) },
-        accounts: {
-            retrieve: vi.fn(async () => ({ id: "acct_test", details_submitted: true, payouts_enabled: true })),
-            create: vi.fn(async () => ({ id: "acct_test" })),
-        },
-        accountLinks: { create: vi.fn(async () => ({ url: "https://connect.stripe.test" })) },
-        webhooks: { constructEvent: vi.fn() },
-    },
-}))
+vi.mock("@/lib/stripe", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/lib/stripe")>()
+    vi.spyOn(actual.stripe.accountLinks, "create").mockImplementation(
+        async (params) => {
+            const link = await stripeDouble.api.accountLinks.create({ ...params })
+            return {
+                object: "account_link",
+                url: link.url,
+                expires_at: link.expires_at,
+                created: Math.floor(Date.now() / 1000),
+                lastResponse: { headers: {}, requestId: "req_test", statusCode: 200 },
+            }
+        }
+    )
+    return { ...actual, stripe: stripeDouble.api }
+})
 
 async function createUser(role: string, email: string) {
     return prisma.user.create({
@@ -120,7 +125,8 @@ describe("the offers of the Lab", () => {
 
         await expect(
             submitLabOffer({ caseId: labCase.id, price: 120, leadTimeDays: 3 })
-        ).rejects.toMatchObject({ code: "CONSENTS_MISSING" })
+        ).resolves.toMatchObject({ ok: false, code: "CONSENTS_MISSING", message: expect.any(String) })
+        expect(await prisma.labOffer.count({ where: { caseId: labCase.id } })).toBe(0)
     })
 
     it("accepts an offer when the consents are given and moves the work to QUOTED", async () => {
@@ -189,7 +195,85 @@ describe("the offers of the Lab", () => {
 
         await expect(
             submitLabOffer({ caseId: labCase.id, price: 100, leadTimeDays: 3 })
-        ).rejects.toMatchObject({ code: "CASE_ASSIGNED" })
+        ).resolves.toMatchObject({ ok: false, code: "CASE_ASSIGNED" })
+    })
+
+    it("shows offers only for work the signed-in designer can bid on", async () => {
+        const dentist = await createUser("DENTIST", "dentist@dentora.gr")
+        const designer = await createUser("DESIGNER", "designer@dentora.gr")
+        const other = await createUser("DESIGNER", "other@dentora.gr")
+        const ownProfile = await createDesigner(designer.id)
+        const otherProfile = await createDesigner(other.id)
+        const ownCase = await createCase(designer.id)
+        const open = await createCase(dentist.id)
+        const requested = await createCase(dentist.id)
+        const privateCase = await createCase(dentist.id)
+        await prisma.labCase.update({ where: { id: requested.id }, data: { requestedDesignerId: ownProfile.id } })
+        await prisma.labCase.update({ where: { id: privateCase.id }, data: { requestedDesignerId: otherProfile.id } })
+
+        session.userId = designer.id
+        const { getDesignerDashboard } = await import("@/app/actions/lab-designer")
+        const dashboard = await getDesignerDashboard()
+        expect(dashboard?.openCases.map((work) => work.id).sort()).toEqual([open.id, requested.id].sort())
+
+        await grantConsents(designer.id)
+        const { submitLabOffer } = await importActions()
+        expect(await submitLabOffer({ caseId: ownCase.id, price: 120, leadTimeDays: 3 })).toMatchObject({
+            ok: false, code: "FORBIDDEN",
+        })
+    })
+
+    it("returns an onboarding URL and reuses the account when Stripe requires both capabilities", async () => {
+        const designer = await createUser("DESIGNER", "onboarding@dentora.gr")
+        const profile = await createDesigner(designer.id)
+        session.userId = designer.id
+        const buildAccount = vi.spyOn(stripeDouble.api.accounts, "create").mockRejectedValueOnce(Object.assign(
+            new Error("Your platform needs approval for accounts to have requested the `transfers` capability without the `card_payments` capability."),
+            { type: "StripeInvalidRequestError" }
+        ))
+        const createLink = vi.spyOn(stripeDouble.api.accountLinks, "create")
+        const { startDesignerStripeOnboarding, getDesignerStripeStatus } = await import("@/app/actions/lab-designer")
+        try {
+            expect(await startDesignerStripeOnboarding()).toEqual({ ok: true, url: expect.stringMatching(/^https:\/\/connect.stripe.test\//) })
+            const saved = await prisma.designerProfile.findUniqueOrThrow({ where: { id: profile.id } })
+            expect(saved.stripeAccountId).toBeTruthy()
+            expect(buildAccount).toHaveBeenCalledTimes(2)
+            expect(buildAccount.mock.calls[1][0].capabilities).toEqual({
+                card_payments: { requested: true }, transfers: { requested: true },
+            })
+            expect(await startDesignerStripeOnboarding()).toMatchObject({ ok: true })
+            expect(buildAccount).toHaveBeenCalledTimes(2)
+            expect(createLink).toHaveBeenLastCalledWith({
+                account: saved.stripeAccountId,
+                refresh_url: "http://localhost:3000/lab/designer?stripe=refresh",
+                return_url: "http://localhost:3000/lab/designer?stripe=return",
+                type: "account_onboarding",
+            })
+            expect(await getDesignerStripeStatus()).toMatchObject({ state: "CAN_RECEIVE_PAYMENTS", isConnected: true })
+        } finally {
+            buildAccount.mockRestore()
+            createLink.mockRestore()
+        }
+    })
+
+    it("returns a safe error if Stripe rejects onboarding, without retrying unrelated failures", async () => {
+        const designer = await createUser("DESIGNER", "onboarding-error@dentora.gr")
+        const profile = await createDesigner(designer.id)
+        session.userId = designer.id
+        const buildAccount = vi.spyOn(stripeDouble.api.accounts, "create").mockRejectedValueOnce(new Error("stripe debug details"))
+        const logger = vi.spyOn(console, "error").mockImplementation(() => {})
+        try {
+            const { startDesignerStripeOnboarding } = await import("@/app/actions/lab-designer")
+            const result = await startDesignerStripeOnboarding()
+            expect(result).toMatchObject({ ok: false, message: expect.any(String) })
+            expect(JSON.stringify(result)).not.toContain("stripe debug details")
+            expect(buildAccount).toHaveBeenCalledTimes(1)
+            const saved = await prisma.designerProfile.findUniqueOrThrow({ where: { id: profile.id } })
+            expect(saved.stripeAccountId).toBeNull()
+        } finally {
+            buildAccount.mockRestore()
+            logger.mockRestore()
+        }
     })
 
     it("accepts one offer only: two parallel acceptances, only one wins", async () => {

@@ -279,6 +279,6 @@ describe("the permissions of the Lab at runtime", () => {
         const { submitLabOffer } = await import("@/app/actions/lab")
         await expect(
             submitLabOffer({ caseId: labCase.id, price: 100, leadTimeDays: 3 })
-        ).rejects.toMatchObject({ code: "FORBIDDEN" })
+        ).resolves.toMatchObject({ ok: false, code: "FORBIDDEN" })
     })
 })
