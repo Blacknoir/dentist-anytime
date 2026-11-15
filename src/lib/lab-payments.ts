@@ -14,6 +14,12 @@ import { LabActionError } from "@/lib/lab-domain"
 
 export const LAB_CURRENCY = "eur"
 
+/**
+ * A claim of a webhook event that is older than this was left behind by a
+ * process that died: the event is processed again.
+ */
+export const WEBHOOK_CLAIM_TTL_MS = 5 * 60 * 1000
+
 export function caseTransferGroup(caseId: string) {
     return `lab_case_${caseId}`
 }
@@ -23,11 +29,16 @@ export function caseTransferGroup(caseId: string) {
  * webhook. The payment intent is checked against the case: same case, same
  * amount, same currency. A replayed event can never move a case that is
  * already refunded or released.
+ *
+ * The id of the charge (ch_...) is stored as well: the escrow transfer must
+ * reference the charge and not the payment intent.
  */
 export async function markCasePaymentHeldInternal(
     caseId: string,
     paymentIntentId: string,
-    expectedAmountCents?: number
+    expectedAmountCents?: number,
+    chargeId?: string | null,
+    currency?: string | null
 ) {
     const target = await prisma.labCase.findUnique({
         where: { id: caseId },
@@ -36,6 +47,7 @@ export async function markCasePaymentHeldInternal(
             paymentStatus: true,
             agreedPrice: true,
             stripePaymentIntentId: true,
+            stripeChargeId: true,
         },
     })
     if (!target) return { applied: false as const, reason: "case_not_found" as const }
@@ -51,15 +63,25 @@ export async function markCasePaymentHeldInternal(
         // overwrite it, the money would become untraceable.
         return { applied: false as const, reason: "another_payment_intent" as const }
     }
+    if (currency && currency.toLowerCase() !== LAB_CURRENCY) {
+        return { applied: false as const, reason: "currency_mismatch" as const }
+    }
     if (typeof expectedAmountCents === "number" && target.agreedPrice) {
         if (Math.round(target.agreedPrice * 100) !== expectedAmountCents) {
             return { applied: false as const, reason: "amount_mismatch" as const }
         }
     }
+    if (target.stripeChargeId && chargeId && target.stripeChargeId !== chargeId) {
+        return { applied: false as const, reason: "another_charge" as const }
+    }
 
     await prisma.labCase.update({
         where: { id: caseId },
-        data: { paymentStatus: "HELD", stripePaymentIntentId: paymentIntentId },
+        data: {
+            paymentStatus: "HELD",
+            stripePaymentIntentId: paymentIntentId,
+            ...(chargeId ? { stripeChargeId: chargeId } : {}),
+        },
     })
 
     return { applied: true as const }
@@ -151,11 +173,12 @@ export async function createCasePaymentIntentInternal(caseId: string) {
  *
  * Guards:
  *  - the case must be COMPLETED and the payment HELD,
- *  - the designer must have a connected account that can receive payouts,
+ *  - the designer must have a connected account that can receive transfers,
  *  - the Stripe call uses an idempotency key derived from the case, so a retry
  *    after a crash returns the very same transfer instead of paying twice,
- *  - the state change is a conditional update, so two concurrent releases
- *    cannot both credit the earnings.
+ *  - the transfer references the CHARGE (ch_...) of the payment and not the
+ *    payment intent (pi_...): only a charge can be the source of a transfer,
+ *  - the state change and the earnings are written in one transaction.
  */
 export async function releaseCasePaymentInternal(caseId: string) {
     const target = await prisma.labCase.findUnique({
@@ -169,6 +192,7 @@ export async function releaseCasePaymentInternal(caseId: string) {
             agreedPrice: true,
             assignedDesignerId: true,
             stripePaymentIntentId: true,
+            stripeChargeId: true,
             assignedDesigner: { select: { stripeAccountId: true } },
         },
     })
@@ -193,10 +217,19 @@ export async function releaseCasePaymentInternal(caseId: string) {
         return { released: false as const, reason: "designer_without_account" as const }
     }
 
+    // The escrow can only be released against the charge of the payment.
+    // Without it the money could not be traced back to the customer.
+    if (!target.stripeChargeId || !target.stripeChargeId.startsWith("ch_")) {
+        return { released: false as const, reason: "missing_charge" as const }
+    }
+
     const payoutCents = Math.round(target.designerPayout * 100)
     if (payoutCents <= 0) {
         return { released: false as const, reason: "invalid_amount" as const }
     }
+
+    const designerProfileId = target.assignedDesignerId
+    const payoutAmount = target.designerPayout
 
     const transfer = await stripe.transfers.create(
         {
@@ -204,28 +237,40 @@ export async function releaseCasePaymentInternal(caseId: string) {
             currency: LAB_CURRENCY,
             destination: accountId,
             transfer_group: caseTransferGroup(target.id),
-            ...(target.stripePaymentIntentId
-                ? { source_transaction: target.stripePaymentIntentId }
-                : {}),
-            metadata: { labCaseId: target.id, designerProfileId: target.assignedDesignerId },
+            source_transaction: target.stripeChargeId,
+            metadata: { labCaseId: target.id, designerProfileId },
         },
         { idempotencyKey: `lab:tr:${target.id}` }
     )
 
-    // Only the run that actually flips the state credits the earnings.
-    const updated = await prisma.labCase.updateMany({
-        where: { id: target.id, paymentStatus: "HELD" },
-        data: { paymentStatus: "RELEASED", stripeTransferId: transfer.id },
-    })
+    // The state of the work and the earnings of the designer are written in
+    // one transaction. If it fails, the transfer already exists: the next
+    // attempt returns the same transfer (idempotency key) and writes the
+    // state again.
+    try {
+        await prisma.$transaction(async (tx) => {
+            const updated = await tx.labCase.updateMany({
+                where: { id: target.id, paymentStatus: "HELD" },
+                data: { paymentStatus: "RELEASED", stripeTransferId: transfer.id },
+            })
 
-    if (updated.count === 1) {
-        await prisma.designerProfile.update({
-            where: { id: target.assignedDesignerId },
-            data: {
-                earnings: { increment: target.designerPayout },
-                completedCases: { increment: 1 },
-            },
+            // Only the run that actually flips the state credits the earnings.
+            if (updated.count === 1) {
+                await tx.designerProfile.update({
+                    where: { id: designerProfileId },
+                    data: {
+                        earnings: { increment: payoutAmount },
+                        completedCases: { increment: 1 },
+                    },
+                })
+            }
         })
+    } catch (error) {
+        console.error(
+            `[lab] The transfer ${transfer.id} was created but the state of the work ${target.id} could not be written:`,
+            error
+        )
+        return { released: false as const, reason: "database_error" as const }
     }
 
     return { released: true as const, transferId: transfer.id }
@@ -261,8 +306,29 @@ export async function refundCasePaymentInternal(caseId: string) {
 /**
  * Registers a Stripe event id. Returns false when the event was already
  * processed, so a webhook retry does not run the handler twice.
+ *
+ * A claim that was left behind by a process that died (the handler was
+ * interrupted) is released after a few minutes: the event is then processed
+ * again instead of being lost for good.
  */
 export async function claimWebhookEvent(eventId: string, type: string) {
+    const existing = await prisma.labWebhookEvent.findUnique({
+        where: { id: eventId },
+        select: { id: true, createdAt: true },
+    })
+
+    if (existing) {
+        const age = Date.now() - existing.createdAt.getTime()
+        if (age < WEBHOOK_CLAIM_TTL_MS) {
+            // The event is being processed (or was processed).
+            return false
+        }
+        // The previous attempt died: the claim is released.
+        await prisma.labWebhookEvent
+            .delete({ where: { id: eventId } })
+            .catch(() => undefined)
+    }
+
     try {
         await prisma.labWebhookEvent.create({ data: { id: eventId, type } })
         return true
@@ -274,4 +340,11 @@ export async function claimWebhookEvent(eventId: string, type: string) {
         if (code === "P2002") return false
         throw error
     }
+}
+
+/** Releases the claim of an event, so that Stripe can retry it. */
+export async function releaseWebhookEvent(eventId: string) {
+    await prisma.labWebhookEvent
+        .delete({ where: { id: eventId } })
+        .catch(() => undefined)
 }

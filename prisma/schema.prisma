@@ -319,6 +319,9 @@ model LabCase {
   paymentStatus      String   @default("UNPAID") // UNPAID, HELD, RELEASED, REFUNDED, FAILED
   stripePaymentIntentId String? @unique
   stripeTransferId   String?
+  // The charge of the payment (ch_...). Only a charge can be the source of
+  // the escrow transfer, the id of the payment intent cannot.
+  stripeChargeId     String?
   // Client generated id of the submit, so that a retried upload never creates
   // a second work.
   clientRequestId    String?  @unique

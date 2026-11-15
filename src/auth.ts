@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import { assignPublicCode } from "@/lib/lab-public-code"
+import { applyRoleOnAccountCreation, keepRoleOnSignIn } from "@/lib/lab-role-profiles"
 import { stripAvatarFromToken } from "@/lib/avatar"
 import { sanitizeRedirectUrl } from "@/lib/auth-redirect"
 
@@ -17,51 +18,8 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "12345"
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@dentistanytime.com"
 
 // Creates the profile that matches the selected role (dentist / lab / CAD designer).
-async function ensureRoleProfile(userId: string, role: string) {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, publicCode: true } })
-    if (!user?.publicCode) {
-        await assignPublicCode(userId, role)
-    }
-
-    if (role === "DENTIST") {
-        const profile = await prisma.dentistProfile.findUnique({ where: { userId } })
-        if (!profile) {
-            await prisma.dentistProfile.create({
-                data: {
-                    userId,
-                    specialty: "General Dentist",
-                    location: "To be updated",
-                    experienceYears: 0,
-                    priceFrom: 0,
-                    about: "New dentist profile",
-                }
-            })
-        }
-        return
-    }
-
-    if (role === "LAB") {
-        const profile = await prisma.labProfile.findUnique({ where: { userId } })
-        if (!profile) {
-            await prisma.labProfile.create({
-                data: {
-                    userId,
-                    labName: "Νέο οδοντοτεχνικό εργαστήριο",
-                }
-            })
-        }
-        return
-    }
-
-    if (role === "DESIGNER") {
-        const profile = await prisma.designerProfile.findUnique({ where: { userId } })
-        if (!profile) {
-            await prisma.designerProfile.create({
-                data: { userId, headline: "CAD Designer" }
-            })
-        }
-    }
-}
+// The implementation lives in @/lib/lab-role-profiles (server only) and is
+// idempotent: it never creates a second profile.
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(prisma),
@@ -229,30 +187,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return session
         },
         async signIn({ user, account, profile }) {
+            // A plain sign-in NEVER changes the role of an existing user. The
+            // role of an account is decided when the account is created (or
+            // by the explicit "professional registration"), never by a cookie
+            // that the browser could have modified.
             const cookieStore = await cookies()
-            const pendingRole = cookieStore.get("pending_role")?.value
 
-            if (pendingRole && user.id) {
-                const currentUser = await prisma.user.findUnique({
-                    where: { id: user.id }
-                })
-
-                // Only update if role is different
-                if (currentUser && currentUser.role !== pendingRole) {
-                    await prisma.user.update({
-                        where: { id: user.id },
-                        data: { role: pendingRole }
-                    })
-                }
-
-                // Create the profile for the selected role (dentist / lab / designer)
-                if (["DENTIST", "LAB", "DESIGNER"].includes(pendingRole)) {
-                    await ensureRoleProfile(user.id, pendingRole)
-                }
-
-                // Clear the cookie
-                cookieStore.delete("pending_role")
+            if (user.id) {
+                await keepRoleOnSignIn(user.id)
             }
+
+            // The hint is not needed any more.
+            cookieStore.delete("pending_role")
             return true
         },
         authorized({ auth, request: { nextUrl } }) {
@@ -277,20 +223,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     events: {
         async createUser({ user }) {
             const cookieStore = await cookies()
-            const pendingRole = cookieStore.get("pending_role")?.value
-
-            if (pendingRole && user.id) {
-                await prisma.user.update({
-                    where: { id: user.id },
-                    data: { role: pendingRole }
-                })
-
-                if (["DENTIST", "LAB", "DESIGNER"].includes(pendingRole)) {
-                    await ensureRoleProfile(user.id, pendingRole)
+            // The account was just created: the role of the sign in form is
+            // applied, after it was checked (only a professional role of the
+            // Lab, never ADMIN).
+            if (user.id) {
+                const role = await applyRoleOnAccountCreation(
+                    user.id,
+                    cookieStore.get("pending_role")?.value
+                )
+                if (role && role !== "PATIENT") {
+                    cookieStore.delete("pending_role")
+                    return
                 }
-                return
             }
-
             // Every account gets an anonymous marketplace code.
             const created = await prisma.user.findUnique({
                 where: { id: user.id },

@@ -2,13 +2,20 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { ArrowRight, KeyRound, Stethoscope, Building2, UserRound } from "lucide-react"
+import { ArrowRight, KeyRound, Stethoscope, Building2, UserRound, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { signInWithGoogleLab, signInWithLabAccount, type LabRole } from "@/app/actions/lab-auth"
+import {
+    signInWithGoogleLab,
+    signInWithLabAccount,
+    joinLabRole,
+    type LabRole,
+} from "@/app/actions/lab-auth"
+import { errorMessage } from "@/lib/error-message"
 
 const DEMO_ACCOUNTS = [
     { email: "dentist@demo.dentora.gr", label: "Οδοντίατρος", icon: Stethoscope },
@@ -22,11 +29,21 @@ const GOOGLE_ROLES: { role: LabRole; label: string }[] = [
     { role: "DESIGNER", label: "CAD Designer" },
 ]
 
-export function LabLoginForm({ devMode }: { devMode: boolean }) {
+export function LabLoginForm({
+    devMode,
+    currentRole,
+    hasProfile,
+}: {
+    devMode: boolean
+    currentRole?: string | null
+    hasProfile?: boolean
+}) {
+    const router = useRouter()
     const { status } = useSession()
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [pending, setPending] = useState<string | null>(null)
+    const [error, setError] = useState<string | null>(null)
 
     const handleAccount = async (accountEmail: string, accountPassword: string) => {
         setPending(accountEmail)
@@ -38,11 +55,32 @@ export function LabLoginForm({ devMode }: { devMode: boolean }) {
         await signInWithGoogleLab(role)
     }
 
+    // The professional registration: the account already exists, only the
+    // professional profile is created.
+    const handleJoin = async (role: LabRole) => {
+        setPending(role)
+        setError(null)
+        try {
+            const result = await joinLabRole(role)
+            if (result?.ok) {
+                router.push(role === "DESIGNER" ? "/lab/designer" : "/lab/cases")
+                router.refresh()
+            }
+        } catch (err: unknown) {
+            setError(errorMessage(err))
+        } finally {
+            setPending(null)
+        }
+    }
+
     return (
         <div className="mt-10 space-y-6">
             {status === "authenticated" && (
                 <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 flex flex-wrap items-center justify-between gap-3">
-                    <span>Είσαι ήδη συνδεδεμένος.</span>
+                    <span>
+                        Είσαι ήδη συνδεδεμένος
+                        {currentRole ? ` ως ${currentRole === "DENTIST" ? "οδοντίατρος" : currentRole === "LAB" ? "οδοντοτεχνικό εργαστήριο" : currentRole === "DESIGNER" ? "CAD Designer" : "ασθενής"}` : ""}.
+                    </span>
                     <div className="flex gap-2">
                         <Button size="sm" variant="outline" asChild>
                             <Link href="/lab/cases">Οι εργασίες μου</Link>
@@ -52,6 +90,44 @@ export function LabLoginForm({ devMode }: { devMode: boolean }) {
                         </Button>
                     </div>
                 </div>
+            )}
+
+            {status === "authenticated" && !hasProfile && (
+                <Card>
+                    <CardContent className="p-6 space-y-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-900">
+                                Επαγγελματική ένταξη στο Dentora Lab
+                            </h2>
+                            <p className="text-sm text-gray-600 mt-1">
+                                Ο λογαριασμός σου είναι έτοιμος. Επίλεξε τον επαγγελματικό σου ρόλο για να
+                                δημιουργήσεις το προφίλ σου. Οι ασθενείς μπορούν να κάνουν κράτηση
+                                κανονικά χωρίς επαγγελματικό προφίλ.
+                            </p>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            {GOOGLE_ROLES.map((item) => (
+                                <Button
+                                    key={item.role}
+                                    variant="outline"
+                                    className="justify-start"
+                                    disabled={pending !== null}
+                                    onClick={() => handleJoin(item.role)}
+                                >
+                                    {item.label}
+                                    {pending === item.role ? (
+                                        <KeyRound className="h-4 w-4 ml-2 animate-pulse" />
+                                    ) : (
+                                        <ArrowRight className="h-4 w-4 ml-2" />
+                                    )}
+                                </Button>
+                            ))}
+                        </div>
+                        {error && (
+                            <p className="text-sm text-red-600">{error}</p>
+                        )}
+                    </CardContent>
+                </Card>
             )}
 
             {devMode && (
@@ -131,7 +207,8 @@ export function LabLoginForm({ devMode }: { devMode: boolean }) {
                     <div>
                         <h2 className="text-lg font-bold text-gray-900">Σύνδεση με Google</h2>
                         <p className="text-sm text-gray-600 mt-1">
-                            Ο ρόλος επιλέγεται μετά τη σύνδεση και αποθηκεύεται στο προφίλ σου.
+                            Ο ρόλος επιλέγεται για τη δημιουργία νέου λογαριασμού. Ένας λογαριασμός που
+                            υπάρχει ήδη κρατά τον ρόλο του.
                         </p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3">
@@ -149,6 +226,11 @@ export function LabLoginForm({ devMode }: { devMode: boolean }) {
                     </div>
                 </CardContent>
             </Card>
+
+            <p className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <LogIn className="h-3.5 w-3.5" />
+                Χρησιμοποιείται ο ίδιος λογαριασμός με την κύρια σελίδα — χωρίς δεύτερη εγγραφή.
+            </p>
         </div>
     )
 }

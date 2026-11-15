@@ -5,7 +5,12 @@ import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { redactContactDetails } from "@/lib/lab"
-import { stripe } from "@/lib/stripe"
+import {
+    createConnectOnboardingLink,
+    platformUrl,
+    readConnectAccountState,
+    stripe,
+} from "@/lib/stripe"
 import { getLabActor } from "@/lib/lab-domain"
 import { LabActionError } from "@/lib/lab-domain"
 
@@ -204,11 +209,19 @@ export type DesignerStripeState =
     | "NOT_CONNECTED"
     | "ONBOARDING_INCOMPLETE"
     | "PENDING_VERIFICATION"
+    | "CAPABILITY_MISSING"
+    | "ACCOUNT_DISABLED"
     | "CAN_RECEIVE_PAYMENTS"
     | "UNAVAILABLE"
 
 /**
  * The real state of the Stripe account of the designer.
+ *
+ * The Lab collects the money on the platform and transfers it to the designer
+ * after the delivery is approved. The account therefore has to be able to
+ * RECEIVE TRANSFERS (the capability "transfers"). `payouts_enabled` alone
+ * says nothing about that: it only says that the account can pay out to its
+ * own bank.
  *
  * The database only caches the account id, the state itself always comes from
  * Stripe, so the dashboard can never show a stale "connected".
@@ -229,19 +242,10 @@ export async function getDesignerStripeStatus() {
 
     try {
         const account = await stripe.accounts.retrieve(designer.stripeAccountId)
-        const detailsSubmitted = !!account.details_submitted
-        const payoutsEnabled = !!account.payouts_enabled
-        const chargesEnabled = !!account.charges_enabled
-        const currentlyDue = account.requirements?.currently_due ?? []
-
-        let state: DesignerStripeState
-        if (payoutsEnabled) state = "CAN_RECEIVE_PAYMENTS"
-        else if (!detailsSubmitted) state = "ONBOARDING_INCOMPLETE"
-        else if (currentlyDue.length > 0) state = "PENDING_VERIFICATION"
-        else state = "PENDING_VERIFICATION"
+        const state = readConnectAccountState(account, "PLATFORM_TRANSFER")
 
         // Keep the cached flag in sync with Stripe.
-        const enabled = state === "CAN_RECEIVE_PAYMENTS"
+        const enabled = state.usable
         if (designer.isStripeEnabled !== enabled) {
             await prisma.designerProfile.update({
                 where: { id: actor.designerProfileId },
@@ -250,12 +254,12 @@ export async function getDesignerStripeStatus() {
         }
 
         return {
-            state,
-            isConnected: state === "CAN_RECEIVE_PAYMENTS",
-            detailsSubmitted,
-            payoutsEnabled,
-            chargesEnabled,
-            currentlyDue,
+            state: state.reason as DesignerStripeState,
+            isConnected: state.usable,
+            detailsSubmitted: state.detailsSubmitted,
+            transfersActive: state.transfersActive,
+            payoutsEnabled: state.payoutsEnabled,
+            currentlyDue: state.currentlyDue,
             accountId: designer.stripeAccountId,
         }
     } catch (error: any) {
@@ -317,8 +321,10 @@ export async function startDesignerStripeOnboarding() {
                 country: "GR",
                 email: session.user.email || undefined,
                 capabilities: {
-                    // Only transfers are needed: the platform collects the
-                    // money and pays the designer out.
+                    // The Lab transfers the money to the designer: the account
+                    // has to be able to receive transfers. The card payments
+                    // capability is not needed (and would ask for more data
+                    // from the designer than necessary).
                     transfers: { requested: true },
                 },
                 metadata: { designerProfileId: designer.id },
@@ -332,7 +338,7 @@ export async function startDesignerStripeOnboarding() {
         })
     }
 
-    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")
+    const baseUrl = platformUrl()
     if (!baseUrl) {
         throw new LabActionError(
             "MISSING_ENV",
@@ -341,11 +347,10 @@ export async function startDesignerStripeOnboarding() {
         )
     }
 
-    const accountLink = await stripe.accountLinks.create({
-        account: accountId,
-        refresh_url: `${baseUrl}/lab/designer?stripe=refresh`,
-        return_url: `${baseUrl}/lab/designer?stripe=return`,
-        type: "account_onboarding",
+    const accountLink = await createConnectOnboardingLink({
+        accountId,
+        refreshUrl: `${baseUrl}/lab/designer?stripe=refresh`,
+        returnUrl: `${baseUrl}/lab/designer?stripe=return`,
     })
 
     redirect(accountLink.url)

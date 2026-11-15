@@ -32,6 +32,40 @@ export default async function LabCasesPage({
     const actor = await getLabActor()
     const cases = await getLabCases({ scope, query, status: status || undefined })
 
+    // A signed in patient has no professional profile yet: the next step is
+    // the professional registration, not a new account.
+    if (actor && !actor.isCustomer && !actor.isDesigner && !actor.isAdmin) {
+        return (
+            <div className="pt-14 pb-20">
+                <div className="container mx-auto px-4 md:px-6 max-w-2xl">
+                    <Card>
+                        <CardContent className="p-8 text-center space-y-4">
+                            <Briefcase className="h-10 w-10 text-primary-600 mx-auto" />
+                            <div>
+                                <h1 className="text-xl font-bold text-gray-900">
+                                    Επαγγελματική ένταξη στο Dentora Lab
+                                </h1>
+                                <p className="text-sm text-gray-600 mt-2">
+                                    Ο λογαριασμός σου είναι έτοιμος. Για να δεις και να δημιουργήσεις εργασίες
+                                    CAD χρειάζεται επαγγελματικό προφίλ (οδοντίατρος, οδοντοτεχνικό εργαστήριο
+                                    ή CAD designer).
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap gap-3 justify-center">
+                                <Button asChild>
+                                    <Link href="/lab/login">Επαγγελματική ένταξη</Link>
+                                </Button>
+                                <Button variant="outline" asChild>
+                                    <Link href="/">Επιστροφή στην κύρια σελίδα</Link>
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        )
+    }
+
     const tabs = [
         { value: "open", label: "Ανοιχτές εργασίες", icon: PackageOpen, show: true },
         { value: "mine", label: "Οι εργασίες μου", icon: ClipboardList, show: !!actor },

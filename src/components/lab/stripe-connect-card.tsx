@@ -55,7 +55,7 @@ export function StripeConnectCard({
                     <CreditCard className="h-4 w-4 mt-0.5 shrink-0" />
                     <span>
                         Ο λογαριασμός σου στο Stripe είναι σε αναμονή επαλήθευσης. Μόλις εγκριθεί, μπορείς να
-                        λαμβάνεις πληρωμές.
+                        λαμβάνεις πληρωμές για τις εργασίες σου.
                         {currentlyDue.length > 0 && (
                             <span className="block text-xs mt-1 opacity-80">
                                 Εκκρεμούν: {currentlyDue.join(", ")}
@@ -70,6 +70,40 @@ export function StripeConnectCard({
             </div>
         )
     }
+
+    if (state === "CAPABILITY_MISSING") {
+        return (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex flex-wrap items-center justify-between gap-3">
+                <span className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                        Ο λογαριασμός σου στο Stripe δεν μπορεί ακόμα να δεχτεί μεταφορές από την πλατφόρμα
+                        (η δυνατότητα «transfers» δεν είναι ενεργή). Άνοιξε το Stripe για να την
+                        ενεργοποιήσεις.
+                    </span>
+                </span>
+                <Button size="sm" variant="outline" onClick={connect} disabled={pending}>
+                    {pending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                    Άνοιξε το Stripe
+                </Button>
+            </div>
+        )
+    }
+
+    if (state === "ACCOUNT_DISABLED") {
+        return (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+                <span className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                    <span>
+                        Ο λογαριασμός σου στο Stripe είναι απενεργοποιημένος. Επικοινώνησε με την ομάδα
+                        υποστήριξης ώστε να ενεργοποιηθεί ξανά.
+                    </span>
+                </span>
+            </div>
+        )
+    }
+
 
     if (state === "UNAVAILABLE") {
         return (

@@ -204,17 +204,23 @@ export default function NewCaseForm() {
     if (!isCustomer) {
         return (
             <div className="pt-24 pb-20 container mx-auto px-4 max-w-xl text-center space-y-4">
-                <h1 className="text-2xl font-bold text-gray-900">Λάθος ρόλος</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Χρειάζεται επαγγελματικό προφίλ</h1>
                 <p className="text-gray-600">
-                    Ο λογαριασμός σου είναι {String(sessionRole).toLowerCase()}. Οι εργασίες τις
-                    δημιουργούν οδοντίατρες και εργαστήρια.
+                    Οι εργασίες CAD τις δημιουργούν οδοντίατρες και οδοντοτεχνικά εργαστήρια. Ο λογαριασμός σου
+                    είναι έτοιμος — χρειάζεται μόνο η επαγγελματική ένταξη.
                 </p>
                 <Button asChild>
-                    <Link href="/lab">Πίσω στο Dentora Lab</Link>
+                    <Link href="/lab/login">Επαγγελματική ένταξη</Link>
                 </Button>
+                <div>
+                    <Link href="/lab/cases" className="text-sm text-gray-500 hover:text-gray-900">
+                        Δες τις εργασίες του δικτύου
+                    </Link>
+                </div>
             </div>
         )
     }
+
 
     return (
         <div className="pt-14 pb-20">

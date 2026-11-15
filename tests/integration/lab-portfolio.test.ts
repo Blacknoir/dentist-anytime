@@ -40,6 +40,12 @@ async function createLab(email: string) {
     return { user, profile }
 }
 
+async function createUser(role: string, email: string) {
+    return prisma.user.create({
+        data: { email, name: email, role },
+    })
+}
+
 describe("the portfolio of a designer", () => {
     beforeEach(async () => {
         await prisma.portfolioItem.deleteMany()
@@ -208,5 +214,86 @@ describe("the portfolio of a designer", () => {
         const labItems = await listOwnPortfolio("LAB")
         expect(labItems).toHaveLength(1)
         expect(labItems[0].title).toBe("Εργαστήριο")
+    })
+
+    it("serves the image of a portfolio item in the public profile", async () => {
+        const { profile } = await createDesigner("designer@dentora.gr")
+        const content = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
+
+        const item = await prisma.portfolioItem.create({
+            data: {
+                ownerType: "DESIGNER",
+                designerProfileId: profile.id,
+                title: "Κορώνα ζιρκονίας",
+                category: "Κορώνες",
+                fileName: "crown.jpg",
+                mimeType: "image/jpeg",
+                fileSize: content.length,
+                width: 800,
+                height: 600,
+                storagePath: "db:test-item",
+                storageProvider: "db",
+                content,
+            },
+        })
+
+        const { GET } = await import("@/app/api/lab/portfolio/[id]/image/route")
+        const res = await GET(new Request("https://www.dentora.gr/"), {
+            params: Promise.resolve({ id: item.id }),
+        })
+
+        expect(res.status).toBe(200)
+        expect(res.headers.get("content-type")).toBe("image/jpeg")
+        const body = Buffer.from(await res.arrayBuffer())
+        expect(body.equals(content)).toBe(true)
+    })
+
+    it("never publishes the private files of a work", async () => {
+        const { user } = await createDesigner("designer@dentora.gr")
+        const dentist = await createUser("DENTIST", "dentist@dentora.gr")
+
+        const labCase = await prisma.labCase.create({
+            data: {
+                code: `LAB-2026-${Math.floor(Math.random() * 9000 + 1000)}`,
+                title: "Κορώνα",
+                type: "Crown",
+                material: "Zirconia",
+                description: "Μονοκόρωνη κορώνα",
+                customerId: dentist.id,
+                customerType: "DENTIST",
+            },
+        })
+
+        await prisma.labCaseFile.create({
+            data: {
+                caseId: labCase.id,
+                kind: "OUTPUT_STL",
+                fileName: "crown_final.stl",
+                fileSize: 1234,
+                storagePath: "db:secret-file",
+                storageProvider: "db",
+                uploadedById: user.id,
+                uploaderRole: "DESIGNER",
+                content: Buffer.from("private stl data"),
+            },
+        })
+
+        session.userId = user.id
+        const { listOwnPortfolio } = await import("@/app/actions/lab-portfolio")
+        const items = await listOwnPortfolio("DESIGNER")
+
+        // The file of the work is not part of the portfolio.
+        expect(items).toHaveLength(0)
+        expect(
+            await prisma.portfolioItem.count({ where: { fileName: "crown_final.stl" } })
+        ).toBe(0)
+
+        // The private file is not served by the public route of the portfolio.
+        const { GET } = await import("@/app/api/lab/portfolio/[id]/image/route")
+        const file = await prisma.labCaseFile.findFirstOrThrow()
+        const res = await GET(new Request("https://www.dentora.gr/"), {
+            params: Promise.resolve({ id: file.id }),
+        })
+        expect(res.status).toBe(404)
     })
 })

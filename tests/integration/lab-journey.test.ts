@@ -18,6 +18,7 @@ vi.mock("@/lib/stripe", () => ({
             create: vi.fn(async (...args: unknown[]) => ({
                 id: "pi_test",
                 client_secret: "secret_test",
+                latest_charge: "ch_test",
                 args,
             })),
         },
@@ -189,7 +190,13 @@ describe("the whole journey of a work", () => {
         expect("clientSecret" in payment).toBe(true)
 
         // 5. the webhook marks the payment as held
-        const held = await markCasePaymentHeldInternal(created.id, "pi_test", 12000)
+        const held = await markCasePaymentHeldInternal(
+            created.id,
+            "pi_test",
+            12000,
+            "ch_test",
+            "eur"
+        )
         expect(held.applied).toBe(true)
 
         // 6. the designer starts the production and delivers the file

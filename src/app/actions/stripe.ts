@@ -1,10 +1,24 @@
 "use server"
 
-import { stripe } from "@/lib/stripe"
+import {
+    createConnectOnboardingLink,
+    platformUrl,
+    readConnectAccountState,
+    stripe,
+} from "@/lib/stripe"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 
+/**
+ * Connect of the dentist.
+ *
+ * The dentist is paid directly: the charge of the patient goes to the
+ * connected account (transfer_data.destination). The account therefore has to
+ * be able to receive charges (the capability "card_payments") - a different
+ * requirement than the one of the Lab, where the platform transfers the money
+ * to the designer.
+ */
 export async function createStripeConnectAccount() {
     const session = await auth()
 
@@ -65,11 +79,11 @@ export async function createStripeConnectAccount() {
             })
         }
 
-        const accountLink = await stripe.accountLinks.create({
-            account: accountId,
-            refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard`, // If they cancel or it fails, go back to dashboard
-            return_url: `${process.env.NEXT_PUBLIC_APP_URL}/stripe/return`, // Success page
-            type: "account_onboarding",
+        const baseUrl = platformUrl()
+        const accountLink = await createConnectOnboardingLink({
+            accountId,
+            refreshUrl: `${baseUrl}/dashboard`, // If they cancel or it fails, go back to dashboard
+            returnUrl: `${baseUrl}/stripe/return`, // Success page
         })
 
         accountLinkUrl = accountLink.url;
@@ -81,7 +95,7 @@ export async function createStripeConnectAccount() {
         return redirect(`/dashboard?stripe_error=${encodeURIComponent(errMsg)}`)
     }
 
-    // Safely redirect to Stripe outside the try-catch block 
+    // Safely redirect to Stripe outside the try-catch block
     // because redirect() intrinsically throws an error itself to function!
     redirect(accountLinkUrl)
 }
@@ -98,21 +112,25 @@ export async function getStripeAccountStatus() {
 
     try {
         const account = await stripe.accounts.retrieve(dentist.stripeAccountId)
-        const isConnected = !!(account.details_submitted && account.charges_enabled)
+        // The dentist is paid directly: the account has to be able to receive
+        // charges (card payments), not only to pay out to its own bank.
+        const state = readConnectAccountState(account, "DESTINATION_CHARGE")
 
-        // Return status accurately based on Stripe's live response
-        // Note: We don't perform the database update here anymore, as doing mutations 
+        // Note: We don't perform the database update here anymore, as doing mutations
         // during Server Component rendering causes Next.js errors in production.
         return {
-            isConnected,
-            detailsSubmitted: account.details_submitted,
-            chargesEnabled: account.charges_enabled
+            isConnected: state.usable,
+            detailsSubmitted: state.detailsSubmitted,
+            chargesEnabled: state.chargesEnabled,
+            transfersActive: state.transfersActive,
+            payoutsEnabled: state.payoutsEnabled,
+            currentlyDue: state.currentlyDue
         }
     } catch (error: any) {
         console.error("Error retrieving Stripe account:", error)
         if (error.code === 'resource_missing' || error.message?.includes('No such account')) {
             console.warn(`Stripe account ${dentist.stripeAccountId} missing in getStripeAccountStatus. UI will reset.`)
-            // Return disconnected state. The actual database wipe will safely happen 
+            // Return disconnected state. The actual database wipe will safely happen
             // inside createStripeConnectAccount when they click exactly button.
             return { isConnected: false }
         }
@@ -164,6 +182,17 @@ export async function createPaymentIntent(amount: number, dentistProfileId: stri
 
     let paymentIntent;
     try {
+        // The account of the dentist has to be able to receive charges: the
+        // payment of the patient goes directly to him (transfer_data.destination).
+        const account = await stripe.accounts.retrieve(dentist.stripeAccountId)
+        const state = readConnectAccountState(account, "DESTINATION_CHARGE")
+        if (!state.usable) {
+            return {
+                error:
+                    "Ο οδοντίατρος δεν μπορεί να δεχτεί ακόμα πληρωμές μέσω Stripe. Ζητήσε από τον οδοντίατρο να ολοκληρώσει τη σύνδεση.",
+            }
+        }
+
         // Το 100% της προκαταβολής πηγαίνει στον οδοντίατρο. Καμία προμήθεια
         // πλατφόρμας (application_fee) δεν χρεώνεται.
         paymentIntent = await stripe.paymentIntents.create({

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { stripe } from "@/lib/stripe"
+import { readConnectAccountState, stripe } from "@/lib/stripe"
 import { StripeReturnClient } from "./stripe-return-client"
 
 export default async function StripeReturnPage() {
@@ -20,10 +20,12 @@ export default async function StripeReturnPage() {
 
     if (dentist?.stripeAccountId) {
         try {
-            // Verify the Stripe account status
+            // Verify the Stripe account status. The dentist is paid directly,
+            // so the account has to be able to receive charges.
             const account = await stripe.accounts.retrieve(dentist.stripeAccountId)
+            const state = readConnectAccountState(account, "DESTINATION_CHARGE")
 
-            if (account.details_submitted && account.charges_enabled) {
+            if (state.usable) {
                 // Account is fully set up - enable Stripe on the profile
                 await prisma.dentistProfile.update({
                     where: { id: dentist.id },
