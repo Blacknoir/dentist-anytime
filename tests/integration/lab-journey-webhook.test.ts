@@ -154,7 +154,7 @@ describe("the journey of a work with the real webhook", () => {
 
         const { createLabCase, submitLabOffer, acceptLabOffer, createCasePaymentIntent } =
             await import("@/app/actions/lab")
-        const { uploadDesignerFiles, approveDelivery, startProduction } = await import(
+        const { approveDelivery, startProduction, submitLabDelivery } = await import(
             "@/app/actions/lab"
         )
         const { createUploadSession, appendUploadChunk, completeUploadSession } = await import(
@@ -238,14 +238,41 @@ describe("the journey of a work with the real webhook", () => {
         // 5. the designer produces and delivers
         session.userId = designerUser.id
         await startProduction(created.id)
-        const deliverable = new FormData()
-        deliverable.append("kind", "OUTPUT_STL")
-        deliverable.append(
-            "files",
-            new File([binaryStl()], "crown_final.stl", { type: "model/stl" })
-        )
-        const delivery = await uploadDesignerFiles(created.id, deliverable)
-        expect(delivery.uploaded.length).toBe(1)
+        expect(await submitLabDelivery(created.id)).toMatchObject({ error: expect.any(String) })
+        const { POST: finishUpload } = await import("@/app/api/lab/uploads/[id]/route")
+        for (const fileName of ["crown_final.stl", "crown_support.stl"]) {
+            const file = binaryStl()
+            const pending = await createUploadSession({
+                userId: designerUser.id, caseId: created.id, fileName,
+                fileSize: file.length, kind: "OUTPUT_STL",
+            })
+            await appendUploadChunk({
+                sessionId: pending.sessionId, userId: designerUser.id, index: 0, data: file,
+            })
+            const finish = () => finishUpload(new Request("https://www.dentora.gr/api/lab/uploads", {
+                method: "POST",
+                body: JSON.stringify({ caseId: created.id, kind: "OUTPUT_STL", checksum: sha256(file) }),
+            }), { params: Promise.resolve({ id: pending.sessionId }) })
+            const response = await finish()
+            expect(response.status).toBe(200)
+            const result = await response.json()
+            expect(await (await finish()).json()).toEqual(result)
+        }
+        const draft = await prisma.labCase.findUnique({
+            where: { id: created.id },
+            select: { status: true, files: { where: { uploaderRole: "DESIGNER" } } },
+        })
+        expect(draft?.status).toBe("IN_PRODUCTION")
+        expect(draft?.files).toHaveLength(2)
+        expect(draft?.files[0]?.submittedAt).toBeNull()
+        session.userId = dentist.id
+        expect(await submitLabDelivery(created.id)).toMatchObject({ error: expect.any(String) })
+        await expect(approveDelivery(created.id)).rejects.toMatchObject({ code: "CASE_NOT_DELIVERED" })
+        session.userId = designerUser.id
+        expect(await submitLabDelivery(created.id)).toEqual({ ok: true })
+        expect(await prisma.labCaseFile.count({ where: {
+            caseId: created.id, uploaderRole: "DESIGNER", submittedAt: { not: null },
+        } })).toBe(2)
 
         // 6. the dentist approves the delivery: the money goes to the designer
         session.userId = dentist.id

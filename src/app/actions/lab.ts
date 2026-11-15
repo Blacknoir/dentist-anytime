@@ -27,9 +27,11 @@ import {
 } from "@/lib/lab-domain"
 import {
     createCasePaymentIntentInternal,
+    getLabWebhookSecret,
     refundCasePaymentInternal,
     releaseCasePaymentInternal,
 } from "@/lib/lab-payments"
+import { stripe } from "@/lib/stripe"
 
 // The actor and the consent checks live in a server-only module: the "use
 // server" directive turns every export of this file into a public POST
@@ -197,82 +199,6 @@ export async function getLabCases(filter?: {
         },
         take: 100,
     })
-}
-
-export async function getLabCaseById(id: string) {
-    return prisma.labCase.findUnique({
-        where: { id },
-        include: {
-            // The customer name is only rendered for the owner and the admins.
-            customer: { select: { id: true, publicCode: true, role: true, name: true } },
-            assignedDesigner: {
-                include: {
-                    // The designer identity stays anonymous for everyone else.
-                    user: { select: { id: true, publicCode: true, image: true } },
-                    services: { where: { isActive: true } },
-                },
-            },
-            files: { orderBy: { createdAt: "asc" } },
-            offers: {
-                orderBy: { price: "asc" },
-                include: {
-                    designerProfile: {
-                        include: { user: { select: { id: true, publicCode: true, image: true } } },
-                    },
-                },
-            },
-            revisions: { orderBy: { createdAt: "desc" } },
-        },
-    })
-}
-
-/** True when the current user may see the full case (files, prices). */
-export async function canAccessLabCase(caseId: string) {
-    const actor = await getLabActor()
-    if (!actor) return false
-    if (actor.isAdmin) return true
-
-    const target = await prisma.labCase.findUnique({
-        where: { id: caseId },
-        select: {
-            customerId: true,
-            assignedDesignerId: true,
-            offers: { select: { designerProfileId: true } },
-            status: true,
-        },
-    })
-    if (!target) return false
-
-    if (target.customerId === actor.userId) return true
-    if (target.assignedDesignerId && target.assignedDesignerId === actor.designerProfileId) return true
-    if (target.offers.some((offer) => offer.designerProfileId === actor.designerProfileId)) return true
-
-    // Open board: everyone can see the summary, but not the private files.
-    return target.status === "OPEN" || target.status === "QUOTED"
-}
-
-export async function getLabCaseForViewer(id: string) {
-    const target = await getLabCaseById(id)
-    if (!target) return null
-    const allowed = await canAccessLabCase(id)
-    const actor = await getLabActor()
-
-    const isOwner = !!actor && target.customerId === actor.userId
-    const isAssignedDesigner = !!actor?.designerProfileId && target.assignedDesignerId === actor.designerProfileId
-
-    // Public board visitors only get the summary — no files, no customer identity.
-    if (!allowed) {
-        return {
-            ...target,
-            files: [],
-            customer: { id: "", publicCode: "", role: "", name: "Εμπισκευμένος" },
-        }
-    }
-    // Files (STL scans, deliverables) stay private until the work is assigned.
-    if (!isOwner && !isAssignedDesigner && !actor?.isAdmin) {
-        return { ...target, files: [] }
-    }
-    return target
 }
 
 // ---------------------------------------------------------------- offers
@@ -493,7 +419,7 @@ export async function rejectLabOffer(caseId: string, offerId: string) {
 
 // ---------------------------------------------------------------- files
 
-export async function uploadCaseFiles(
+async function uploadCaseFiles(
     caseId: string,
     formData: FormData,
     uploaderRole: "CUSTOMER" | "DESIGNER",
@@ -625,10 +551,7 @@ export async function uploadCustomerFiles(caseId: string, formData: FormData) {
     return uploadCaseFiles(caseId, formData, "CUSTOMER", INPUT_FILE_KINDS)
 }
 
-/**
- * The assigned designer uploads the finished files. The work is only marked
- * as delivered when at least one file was really stored.
- */
+/** The assigned designer stores draft deliverables. */
 export async function uploadDesignerFiles(caseId: string, formData: FormData) {
     const actor = await requireActor()
     if (!actor.isDesigner || !actor.designerProfileId) {
@@ -649,11 +572,47 @@ export async function uploadDesignerFiles(caseId: string, formData: FormData) {
         )
     }
 
-    await prisma.labCase.updateMany({
-        where: { id: caseId, status: { in: ["ASSIGNED", "IN_PRODUCTION"] } },
-        data: { status: "DELIVERED" },
+    return result
+}
+
+export async function submitLabDelivery(caseId: string) {
+    const actor = await getLabActor()
+    if (!actor?.isDesigner || !actor.designerProfileId) {
+        return { error: "Μόνο ο designer της εργασίας μπορεί να υποβάλει παράδοση." }
+    }
+    const result = await prisma.$transaction(async (tx) => {
+        const submittedAt = new Date()
+        const drafts = {
+            caseId,
+            uploadedById: actor.userId,
+            uploaderRole: "DESIGNER",
+            kind: { in: OUTPUT_FILE_KINDS },
+            storagePath: { not: "pending" },
+            fileSize: { gt: 0 },
+            submittedAt: null,
+        }
+        const updated = await tx.labCase.updateMany({
+            where: {
+                id: caseId,
+                assignedDesignerId: actor.designerProfileId,
+                status: { in: ["ASSIGNED", "IN_PRODUCTION"] },
+                paymentStatus: "HELD",
+                files: { some: drafts },
+            },
+            data: { status: "DELIVERED" },
+        })
+        if (!updated.count) {
+            return { error: "Η παράδοση χρειάζεται επιβεβαιωμένη πληρωμή και τουλάχιστον ένα νέο αποθηκευμένο παραδοτέο." }
+        }
+        await tx.labCaseFile.updateMany({ where: drafts, data: { submittedAt } })
+        await tx.caseRevision.updateMany({
+            where: { caseId, status: "REQUESTED" },
+            data: { status: "DELIVERED" },
+        })
+        return { ok: true }
     })
     revalidatePath(`/lab/cases/${caseId}`)
+    revalidatePath("/lab/designer")
     return result
 }
 
@@ -674,7 +633,15 @@ export async function startProduction(caseId: string) {
         throw new Error("Η εργασία δεν είναι σε αναμονή.")
     }
 
-    await prisma.labCase.update({ where: { id: caseId }, data: { status: "IN_PRODUCTION" } })
+    await prisma.labCase.updateMany({
+        where: {
+            id: caseId,
+            assignedDesignerId: actor.designerProfileId,
+            status: { in: ["ASSIGNED", "IN_PRODUCTION"] },
+            paymentStatus: "HELD",
+        },
+        data: { status: "IN_PRODUCTION" },
+    })
     revalidatePath(`/lab/cases/${caseId}`)
     revalidatePath("/lab/designer")
     return { ok: true }
@@ -693,44 +660,25 @@ export async function requestRevision(caseId: string, message: string) {
     if (!target.assignedDesignerId) throw new Error("Η εργασία δεν έχει ανατεθεί ακόμα.")
     if (!message || message.trim().length < 3) throw new Error("Περιέγραψε τις αλλαγές που θέλεις.")
 
-    await prisma.caseRevision.create({
-        data: {
-            caseId,
-            designerProfileId: target.assignedDesignerId,
-            requestedById: actor.userId,
-            message: redactContactDetails(message).trim(),
-            status: "REQUESTED",
-        },
+    const designerProfileId = target.assignedDesignerId
+    await prisma.$transaction(async (tx) => {
+        const updated = await tx.labCase.updateMany({
+            where: { id: caseId, status: "DELIVERED" },
+            data: { status: "IN_PRODUCTION" },
+        })
+        if (!updated.count) throw new LabActionError("CASE_NOT_DELIVERED", "Η εργασία δεν είναι σε κατάσταση παράδοσης.", 409)
+        await tx.caseRevision.create({
+            data: {
+                caseId,
+                designerProfileId,
+                requestedById: actor.userId,
+                message: redactContactDetails(message).trim(),
+                status: "REQUESTED",
+            },
+        })
     })
-
-    await prisma.labCase.update({ where: { id: caseId }, data: { status: "IN_PRODUCTION" } })
 
     revalidatePath(`/lab/cases/${caseId}`)
-    return { ok: true }
-}
-
-export async function markRevisionDelivered(revisionId: string) {
-    const actor = await requireActor()
-    if (!actor.isDesigner || !actor.designerProfileId) throw new Error("Μόνο ο designer μπορεί να επιβεβαιώσει διόρθωση.")
-
-    const revision = await prisma.caseRevision.findUnique({
-        where: { id: revisionId },
-        select: { id: true, caseId: true, designerProfileId: true, status: true },
-    })
-    if (!revision || revision.designerProfileId !== actor.designerProfileId) {
-        throw new Error("Δεν βρέθηκε η αίτηση διόρθωσης.")
-    }
-
-    await prisma.caseRevision.update({
-        where: { id: revisionId },
-        data: { status: "DELIVERED" },
-    })
-    await prisma.labCase.update({
-        where: { id: revision.caseId },
-        data: { status: "DELIVERED" },
-    })
-
-    revalidatePath(`/lab/cases/${revision.caseId}`)
     return { ok: true }
 }
 
@@ -756,7 +704,7 @@ export async function approveDelivery(caseId: string) {
             403
         )
     }
-    if (!["DELIVERED", "IN_PRODUCTION"].includes(target.status)) {
+    if (target.status !== "DELIVERED") {
         throw new LabActionError(
             "CASE_NOT_DELIVERED",
             "Η εργασία δεν είναι σε κατάσταση παράδοσης.",
@@ -764,26 +712,23 @@ export async function approveDelivery(caseId: string) {
         )
     }
 
-    const deliverables = await prisma.labCaseFile.count({
-        where: { caseId, kind: { in: OUTPUT_FILE_KINDS }, storagePath: { not: "pending" } },
+    const completed = await prisma.$transaction(async (tx) => {
+        const updated = await tx.labCase.updateMany({
+            where: {
+                id: caseId,
+                status: "DELIVERED",
+                files: { some: { kind: { in: OUTPUT_FILE_KINDS }, submittedAt: { not: null } } },
+            },
+            data: { status: "COMPLETED" },
+        })
+        if (!updated.count) return false
+        await tx.caseRevision.updateMany({
+            where: { caseId, status: { in: ["REQUESTED", "DELIVERED"] } },
+            data: { status: "RESOLVED", resolvedAt: new Date() },
+        })
+        return true
     })
-    if (deliverables === 0) {
-        throw new LabActionError(
-            "NO_DELIVERABLE",
-            "Ο designer δεν έχει παραδώσει ακόμα αρχεία.",
-            409
-        )
-    }
-
-    await prisma.labCase.updateMany({
-        where: { id: caseId, status: { in: ["DELIVERED", "IN_PRODUCTION"] } },
-        data: { status: "COMPLETED" },
-    })
-
-    await prisma.caseRevision.updateMany({
-        where: { caseId, status: { in: ["REQUESTED", "DELIVERED"] } },
-        data: { status: "RESOLVED", resolvedAt: new Date() },
-    })
+    if (!completed) throw new LabActionError("CASE_CHANGED", "Δεν υπάρχει διαθέσιμη παράδοση για έγκριση.", 409)
 
     // The money is released only when it is really held. If the designer has
     // no Stripe account yet the payout stays pending and can be retried.
@@ -826,27 +771,40 @@ export async function cancelLabCase(caseId: string) {
         throw new LabActionError("CASE_COMPLETED", "Η εργασία έχει ολοκληρωθεί.", 409)
     }
 
-    // The refund happens first: if it fails the work stays as it was, so the
-    // customer is never charged for a cancelled work.
-    let refunded = false
-    if (target.paymentStatus === "HELD") {
+    if (target.stripePaymentIntentId && ["UNPAID", "FAILED"].includes(target.paymentStatus) && target.status !== "CANCELLED") {
+        // Prevent a checkout left open in another tab from charging after cancellation.
         try {
-            const result = await refundCasePaymentInternal(caseId)
-            refunded = result.refunded
+            const intent = await stripe.paymentIntents.retrieve(target.stripePaymentIntentId)
+            if (intent.status !== "canceled") await stripe.paymentIntents.cancel(intent.id)
         } catch (error) {
-            console.error("[lab] Refund failed:", error)
+            console.error("[lab] Could not cancel the open Lab payment:", error)
             throw new LabActionError(
-                "REFUND_FAILED",
-                "Η επιστροφή του ποσού απέτυχε. Δοκίμασε ξανά σε λίγα λεπτά.",
-                502
+                "PAYMENT_NOT_CANCELLED",
+                "Η πληρωμή δεν μπορεί να ακυρωθεί αυτή τη στιγμή. Ανανέωσε τη σελίδα και δοκίμασε ξανά.",
+                409
             )
         }
     }
 
-    await prisma.labCase.update({
-        where: { id: caseId },
-        data: { status: "CANCELLED" },
-    })
+    if (target.status !== "CANCELLED") {
+        const cancelled = await prisma.labCase.updateMany({
+            where: {
+                id: caseId,
+                status: target.status,
+                stripePaymentIntentId: target.stripePaymentIntentId,
+                paymentStatus: { not: "RELEASED" },
+            },
+            data: { status: "CANCELLED" },
+        })
+        if (!cancelled.count) throw new LabActionError("CASE_CHANGED", "Η κατάσταση της εργασίας άλλαξε. Ανανέωσε τη σελίδα.", 409)
+    }
+
+    let refunded = false
+    try {
+        refunded = (await refundCasePaymentInternal(caseId)).refunded
+    } catch (error) {
+        console.error("[lab] Refund remains pending:", error)
+    }
 
     revalidatePath(`/lab/cases/${caseId}`)
     revalidatePath("/lab/cases")
@@ -878,12 +836,16 @@ export async function createCasePaymentIntent(
     if (target.customerId !== session.user.id) {
         return { error: "Μόνο ο ιδιοκτήτης μπορεί να πληρώσει." }
     }
+    if (!getLabWebhookSecret()) {
+        return { error: "Οι πληρωμές Lab δεν είναι διαθέσιμες αυτή τη στιγμή. Δοκίμασε αργότερα." }
+    }
 
     try {
         return await createCasePaymentIntentInternal(caseId)
-    } catch (error: any) {
+    } catch (error: unknown) {
+        if (error instanceof LabActionError) return { error: error.message }
         console.error("[lab] Payment intent error:", error)
-        return { error: error?.message || "Η δημιουργία της πληρωμής απέτυχε." }
+        return { error: "Η δημιουργία της πληρωμής απέτυχε. Δοκίμασε ξανά." }
     }
 }
 
@@ -895,38 +857,36 @@ export async function createCasePaymentIntent(
  * itself lives in a server-only module.
  */
 export async function releaseCasePayment(caseId: string) {
-    const actor = await requireActor()
+    const actor = await getLabActor()
 
     const target = await prisma.labCase.findUnique({
         where: { id: caseId },
-        select: { id: true, customerId: true, status: true, paymentStatus: true },
+        select: { customerId: true, assignedDesignerId: true, status: true, paymentStatus: true },
     })
-    if (!target) throw new LabActionError("NOT_FOUND", "Η εργασία δεν βρέθηκε.", 404)
-    if (target.customerId !== actor.userId && !actor.isAdmin) {
-        throw new LabActionError(
-            "FORBIDDEN",
-            "Μόνο ο ιδιοκτήτης μπορεί να ζητήσει την αποδέσμευση των χρημάτων.",
-            403
-        )
+    if (!actor || !target || !(actor.isAdmin || target.customerId === actor.userId ||
+        (actor.isDesigner && actor.designerProfileId === target.assignedDesignerId))) {
+        return { error: "Δεν έχεις δικαίωμα αποδέσμευσης για αυτή την εργασία." }
     }
-    if (target.status !== "COMPLETED") {
-        throw new LabActionError(
-            "CASE_NOT_COMPLETED",
-            "Η εργασία δεν έχει ολοκληρωθεί.",
-            409
-        )
+    if (target.status !== "COMPLETED" || !["HELD", "RELEASED"].includes(target.paymentStatus)) {
+        return { error: "Δεν υπάρχει διαθέσιμη πληρωμή για αποδέσμευση." }
     }
-    if (target.paymentStatus !== "HELD") {
-        throw new LabActionError(
-            "PAYMENT_NOT_HELD",
-            "Δεν υπάρχει κατατεθείμένο ποσό για αποδέσμευση.",
-            409
-        )
+    try {
+        const result = await releaseCasePaymentInternal(caseId)
+        if (result.released) {
+            revalidatePath(`/lab/cases/${caseId}`)
+            revalidatePath("/lab/designer")
+            return { ok: true }
+        }
+        if (result.reason === "designer_without_account") {
+            return { error: "Ο designer πρέπει πρώτα να συνδέσει το Stripe." }
+        }
+        if (result.reason === "missing_charge" || result.reason === "reconciliation_required") {
+            return { error: "Η πληρωμή χρειάζεται έλεγχο από την υποστήριξη της Dentora." }
+        }
+    } catch (error) {
+        console.error("[lab] Payout retry failed:", error)
     }
-
-    const result = await releaseCasePaymentInternal(caseId)
-    revalidatePath(`/lab/cases/${caseId}`)
-    return { ok: result.released, reason: result.reason }
+    return { error: "Η αποδέσμευση εκκρεμεί. Δοκίμασε ξανά σε λίγο." }
 }
 
 export async function getLabPaymentConfig() {

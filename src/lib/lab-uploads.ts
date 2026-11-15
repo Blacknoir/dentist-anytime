@@ -9,7 +9,7 @@ import "server-only"
 
 import { prisma } from "@/lib/prisma"
 import { sha256 } from "@/lib/lab-crypto"
-import { storeLabFile, MAX_UPLOAD_BYTES, MAX_DATABASE_UPLOAD_BYTES } from "@/lib/lab-storage"
+import { getLabStorageProvider, hasAcceptedExtension, storeLabFile, MAX_UPLOAD_BYTES, MAX_DATABASE_UPLOAD_BYTES } from "@/lib/lab-storage"
 import { INPUT_FILE_KINDS, OUTPUT_FILE_KINDS, type LabFileKind } from "@/lib/lab"
 import { LabActionError } from "@/lib/lab-domain"
 
@@ -34,17 +34,11 @@ export type UploadLimits = {
  * a blob store.
  */
 export function getUploadLimits(): UploadLimits {
-    const provider = process.env.LAB_STORAGE_PROVIDER === "db"
-        ? "db"
-        : process.env.BLOB_READ_WRITE_TOKEN
-          ? "blob"
-          : "local"
-
     return {
         chunkSize: UPLOAD_CHUNK_BYTES,
         maxFileSize: MAX_UPLOAD_BYTES,
         maxDatabaseFileSize: MAX_DATABASE_UPLOAD_BYTES,
-        provider,
+        provider: getLabStorageProvider(),
     }
 }
 
@@ -77,6 +71,9 @@ export async function createUploadSession(input: {
 
     if (!input.fileName || input.fileName.length > 200) {
         throw new LabActionError("VALIDATION", "Μη έγκυρο όνομα αρχείου.")
+    }
+    if (input.kind !== "PORTFOLIO" && !hasAcceptedExtension(input.fileName)) {
+        throw new LabActionError("VALIDATION", "Ο τύπος του αρχείου δεν υποστηρίζεται.")
     }
     if (!Number.isFinite(input.fileSize) || input.fileSize <= 0) {
         throw new LabActionError("VALIDATION", "Το αρχείο είναι κενό.")
@@ -269,6 +266,7 @@ export async function completeUploadSession(input: {
 
     const record = await prisma.labCaseFile.create({
         data: {
+            id: session.id,
             caseId: input.caseId,
             kind: input.kind,
             fileName: session.fileName,
@@ -281,8 +279,9 @@ export async function completeUploadSession(input: {
         },
     })
 
+    let stored: Awaited<ReturnType<typeof storeLabFile>> | undefined
     try {
-        const stored = await storeLabFile({
+        stored = await storeLabFile({
             caseId: input.caseId,
             fileName: session.fileName,
             body,
@@ -290,19 +289,24 @@ export async function completeUploadSession(input: {
             fileId: record.id,
         })
 
-        await prisma.labCaseFile.update({
-            where: { id: record.id },
-            data: { storagePath: stored.storagePath, storageProvider: stored.storageProvider },
-        })
-
-        await prisma.labUploadSession.update({
-            where: { id: session.id },
-            data: { status: "COMPLETED", checksum: digest },
-        })
-        await prisma.labUploadChunk.deleteMany({ where: { sessionId: session.id } })
+        await prisma.$transaction([
+            prisma.labCaseFile.update({
+                where: { id: record.id },
+                data: { storagePath: stored.storagePath, storageProvider: stored.storageProvider },
+            }),
+            prisma.labUploadSession.update({
+                where: { id: session.id },
+                data: { status: "COMPLETED", checksum: digest },
+            }),
+            prisma.labUploadChunk.deleteMany({ where: { sessionId: session.id } }),
+        ])
 
         return { fileId: record.id, checksum: digest, provider: stored.storageProvider }
     } catch (error) {
+        if (stored && stored.storageProvider !== "db") {
+            const { deleteLabFile } = await import("@/lib/lab-storage")
+            await deleteLabFile(stored.storagePath, stored.storageProvider).catch(() => undefined)
+        }
         await prisma.labCaseFile.delete({ where: { id: record.id } }).catch(() => undefined)
         await prisma.labUploadSession.update({
             where: { id: session.id },

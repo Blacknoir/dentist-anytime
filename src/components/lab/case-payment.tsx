@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { loadStripe } from "@stripe/stripe-js"
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js"
-import { CheckCircle2, CreditCard, Loader2, Lock } from "lucide-react"
+import { CreditCard, Loader2, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createCasePaymentIntent } from "@/app/actions/lab"
 import { euros } from "@/lib/lab"
@@ -27,6 +28,7 @@ function LabPaymentForm({ amountCents, onPaid }: { amountCents: number; onPaid: 
             const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
                 elements,
                 redirect: "if_required",
+                confirmParams: { return_url: window.location.origin + window.location.pathname },
             })
 
             if (confirmError) {
@@ -78,18 +80,17 @@ export function CasePaymentPanel({
     amountCents,
     feeCents,
     payoutCents,
-    paymentStatus,
 }: {
     caseId: string
     amountCents: number
     feeCents: number
     payoutCents: number
-    paymentStatus: string
 }) {
     const [clientSecret, setClientSecret] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
-    const [paid, setPaid] = useState(paymentStatus === "HELD" || paymentStatus === "RELEASED")
+    const [confirmationSent, setConfirmationSent] = useState(false)
+    const router = useRouter()
 
     useEffect(() => {
         let cancelled = false
@@ -110,24 +111,20 @@ export function CasePaymentPanel({
                 }
             }
 
-        if (!paid) start()
-        else setLoading(false)
+        if (!confirmationSent) start()
 
         return () => {
             cancelled = true
         }
-    }, [caseId, paid])
+    }, [caseId, confirmationSent])
 
-    if (paid) {
+    if (confirmationSent) {
         return (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800 space-y-1">
-                <div className="font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4" /> Η πληρωμή καταχωρίστηκε
-                </div>
-                <p className="text-xs">
-                    Τα χρήματα κρατούνται σε ασφάλεια και θα μεταφερθούν στον designer μόλις εγκρίνεις την
-                    παράδοση.
-                </p>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm space-y-2">
+                <p role="status">Περιμένουμε επιβεβαίωση της πληρωμής από το Stripe.</p>
+                <Button size="sm" variant="outline" onClick={() => router.refresh()}>
+                    Ανανέωσε την κατάσταση
+                </Button>
             </div>
         )
     }
@@ -164,8 +161,8 @@ export function CasePaymentPanel({
                     <LabPaymentForm
                         amountCents={amountCents}
                         onPaid={() => {
-                            setPaid(true)
-                            window.location.reload()
+                            setConfirmationSent(true)
+                            router.refresh()
                         }}
                     />
                 </Elements>

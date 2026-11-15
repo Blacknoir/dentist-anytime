@@ -16,7 +16,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { getLabActor, getLabCaseById } from "@/app/actions/lab"
+import { getLabActor, getLabCaseById } from "@/lib/lab-domain"
 import { FileRow, PaymentBadge, StatusBadge, Stars } from "@/components/lab/lab-components"
 import {
     AcceptOfferButton,
@@ -27,6 +27,7 @@ import {
     FileHint,
     InlineNotice,
     OfferForm,
+    PayoutRetryButton,
     RevisionRequest,
     StartProductionButton,
 } from "@/components/lab/case-panel"
@@ -46,9 +47,15 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
     const isAssigned = !!actor?.designerProfileId && target.assignedDesignerId === actor.designerProfileId
     const isAdmin = actor?.isAdmin
     const myOffer = target.offers.find((offer) => offer.designerProfileId === actor?.designerProfileId)
+    if (!isOwner && !isAssigned && !isAdmin && !myOffer && !["OPEN", "QUOTED"].includes(target.status)) {
+        notFound()
+    }
 
     // Files are private until the work is assigned.
-    const visibleFiles = isOwner || isAssigned || isAdmin ? target.files : []
+    const visibleFiles = target.files.filter((file) =>
+        file.storagePath !== "pending" && (isAssigned || isAdmin ||
+            (isOwner && (file.uploaderRole !== "DESIGNER" || file.submittedAt)))
+    )
     // The owner sees every offer, a designer only their own.
     const visibleOffers = isOwner || isAdmin ? target.offers : myOffer ? [myOffer] : []
     // Counterparties only see an anonymous code — never a real name.
@@ -60,10 +67,11 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
 
     const canOffer =
         !!actor?.isDesigner && !isOwner && ["OPEN", "QUOTED"].includes(target.status) && !isAssigned
-    const canPay = (isOwner || isAdmin) && target.status === "ASSIGNED" && target.paymentStatus === "UNPAID"
+    const canPay = isOwner && target.status === "ASSIGNED" && ["UNPAID", "FAILED"].includes(target.paymentStatus)
     const canApprove = (isOwner || isAdmin) && target.status === "DELIVERED"
-    const canRequestRevision = (isOwner || isAdmin) && ["DELIVERED", "IN_PRODUCTION"].includes(target.status)
-    const canDeliver = isAssigned && ["ASSIGNED", "IN_PRODUCTION"].includes(target.status)
+    const canRequestRevision = (isOwner || isAdmin) && target.status === "DELIVERED"
+    const canDeliver = isAssigned && target.paymentStatus === "HELD" && ["ASSIGNED", "IN_PRODUCTION"].includes(target.status)
+    const hasDrafts = visibleFiles.some((file) => file.uploaderRole === "DESIGNER" && !file.submittedAt)
 
     const designerServiceHint = actor?.designerProfileId
         ? target.assignedDesigner?.services?.[0]?.price ?? null
@@ -368,26 +376,21 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                             amountCents={Math.round(target.agreedPrice * 100)}
                                             feeCents={Math.round((target.platformFee ?? 0) * 100)}
                                             payoutCents={Math.round((target.designerPayout ?? 0) * 100)}
-                                            paymentStatus={target.paymentStatus}
                                         />
                                     </div>
                                 )}
 
-                                {target.paymentStatus === "HELD" && (
-                                    <p className="text-[11px] text-gray-400 leading-relaxed">
-                                        Το ποσό κρατίεται σε ασφάλεια στη Dentora. Θα αποδεσμευτεί στον designer
-                                        μόλις εγκρίνεις την παράδοση.
-                                    </p>
-                                )}
-
                                 {target.status === "COMPLETED" && target.paymentStatus === "HELD" && (
-                                    <p className="text-[11px] text-amber-600 leading-relaxed">
-                                        Η εργασία ολοκληρώθηκε. Τα χρήματα θα αποδεσμευτούν στον designer μόλις
-                                        συνδέσει το Stripe account του.
-                                    </p>
+                                    <>
+                                        <InlineNotice tone="warn">Η εργασία ολοκληρώθηκε. Η πληρωμή του designer εκκρεμεί.</InlineNotice>
+                                        {(isOwner || isAssigned || isAdmin) && <PayoutRetryButton caseId={target.id} />}
+                                    </>
                                 )}
 
-                                {target.paymentStatus === "HELD" && (
+                                {target.status === "CANCELLED" && target.paymentStatus === "HELD" && (
+                                    <InlineNotice tone="warn">Η εργασία ακυρώθηκε. Η επιστροφή χρημάτων εκκρεμεί.</InlineNotice>
+                                )}
+                                {target.paymentStatus === "HELD" && !["COMPLETED", "CANCELLED"].includes(target.status) && (
                                     <InlineNotice tone="warn">
                                         Το ποσό κρατείται σε ασφάλεια στη Dentora. Θα αποδεσμευτεί στον designer μόλις
                                         εγκρίνεις την παράδοση.
@@ -428,7 +431,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                         </p>
                                     )}
 
-                                    {target.status === "ASSIGNED" && target.paymentStatus === "UNPAID" && (
+                                    {canPay && (
                                         <p className="text-sm text-gray-500">
                                             Ολοκλήρωσε την πληρωμή για να ξεκινήσει η παραγωγή.
                                         </p>
@@ -446,6 +449,9 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
 
                                     {["OPEN", "QUOTED", "ASSIGNED", "IN_PRODUCTION"].includes(target.status) && (
                                         <CancelCaseButton caseId={target.id} />
+                                    )}
+                                    {target.status === "CANCELLED" && target.paymentStatus === "HELD" && (
+                                        <CancelCaseButton caseId={target.id} retryRefund />
                                     )}
                                 </CardContent>
                             </Card>
@@ -466,7 +472,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                                     <p className="text-sm font-medium text-gray-700">
                                                         Ανέβασε τα ολοκληρωμένα αρχεία
                                                     </p>
-                                                    <DeliverableUpload caseId={target.id} />
+                                                    <DeliverableUpload caseId={target.id} hasDrafts={hasDrafts} />
                                                 </div>
                                             )}
                                             {target.status === "DELIVERED" && (
@@ -474,7 +480,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                                     Τα αρχεία σου στάλθηκαν στον πελάτη. Περιμένε έγκριση.
                                                 </InlineNotice>
                                             )}
-                                            {target.status === "COMPLETED" && (
+                                            {target.status === "COMPLETED" && target.paymentStatus === "RELEASED" && (
                                                 <InlineNotice tone="success">
                                                     Η εργασία ολοκληρώθηκε και η πληρωμή σου αποδεσμεύτηκε.
                                                 </InlineNotice>
@@ -494,6 +500,7 @@ export default async function LabCaseDetailPage({ params }: { params: Promise<{ 
                                             </p>
                                             <OfferForm
                                                 caseId={target.id}
+                                                units={target.units}
                                                 priceHint={designerServiceHint}
                                             />
                                         </>

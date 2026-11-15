@@ -169,7 +169,7 @@ function fileIcon(kind: string) {
     return <FileUp className="h-4 w-4 text-primary-600" />
 }
 
-export function FileRow({ file }: { file: LabCaseFileItem }) {
+export function FileRow({ file }: { file: Pick<LabCaseFileItem, "id" | "kind" | "fileName" | "fileSize"> }) {
     return (
         <div className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2">
             <span className="flex items-center gap-2 font-medium text-gray-700 min-w-0">

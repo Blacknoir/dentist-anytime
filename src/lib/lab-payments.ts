@@ -7,6 +7,7 @@
 
 import "server-only"
 
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { stripe } from "@/lib/stripe"
 import { computeSplit } from "@/lib/lab"
@@ -14,11 +15,9 @@ import { LabActionError } from "@/lib/lab-domain"
 
 export const LAB_CURRENCY = "eur"
 
-/**
- * A claim of a webhook event that is older than this was left behind by a
- * process that died: the event is processed again.
- */
-export const WEBHOOK_CLAIM_TTL_MS = 5 * 60 * 1000
+export function getLabWebhookSecret() {
+    return process.env.STRIPE_LAB_WEBHOOK_SECRET?.trim() || ""
+}
 
 export function caseTransferGroup(caseId: string) {
     return `lab_case_${caseId}`
@@ -38,9 +37,10 @@ export async function markCasePaymentHeldInternal(
     paymentIntentId: string,
     expectedAmountCents?: number,
     chargeId?: string | null,
-    currency?: string | null
+    currency?: string | null,
+    db: Prisma.TransactionClient = prisma
 ) {
-    const target = await prisma.labCase.findUnique({
+    const target = await db.labCase.findUnique({
         where: { id: caseId },
         select: {
             id: true,
@@ -75,8 +75,16 @@ export async function markCasePaymentHeldInternal(
         return { applied: false as const, reason: "another_charge" as const }
     }
 
-    await prisma.labCase.update({
-        where: { id: caseId },
+    const updated = await db.labCase.updateMany({
+        where: {
+            id: caseId,
+            paymentStatus: { in: ["UNPAID", "FAILED", "HELD"] },
+            agreedPrice: target.agreedPrice,
+            AND: [
+                { OR: [{ stripePaymentIntentId: null }, { stripePaymentIntentId: paymentIntentId }] },
+                { OR: [{ stripeChargeId: null }, { stripeChargeId: chargeId ?? target.stripeChargeId }] },
+            ],
+        },
         data: {
             paymentStatus: "HELD",
             stripePaymentIntentId: paymentIntentId,
@@ -84,7 +92,9 @@ export async function markCasePaymentHeldInternal(
         },
     })
 
-    return { applied: true as const }
+    return updated.count
+        ? { applied: true as const }
+        : { applied: false as const, reason: "payment_changed" as const }
 }
 
 /**
@@ -97,6 +107,7 @@ export async function createCasePaymentIntentInternal(caseId: string) {
         where: { id: caseId },
         select: {
             id: true,
+            status: true,
             agreedPrice: true,
             paymentStatus: true,
             stripePaymentIntentId: true,
@@ -129,11 +140,16 @@ export async function createCasePaymentIntentInternal(caseId: string) {
             409
         )
     }
+    if (target.status !== "ASSIGNED") {
+        throw new LabActionError("CASE_NOT_PAYABLE", "Η εργασία δεν είναι διαθέσιμη για πληρωμή.", 409)
+    }
 
     const split = computeSplit(target.agreedPrice)
     const amount = Math.round(target.agreedPrice * 100)
 
-    const paymentIntent = await stripe.paymentIntents.create(
+    const paymentIntent = target.stripePaymentIntentId
+        ? await stripe.paymentIntents.retrieve(target.stripePaymentIntentId)
+        : await stripe.paymentIntents.create(
         {
             amount,
             currency: LAB_CURRENCY,
@@ -150,14 +166,25 @@ export async function createCasePaymentIntentInternal(caseId: string) {
         { idempotencyKey: `lab:pi:${target.id}` }
     )
 
-    await prisma.labCase.update({
-        where: { id: target.id },
+    const saved = await prisma.labCase.updateMany({
+        where: {
+            id: target.id,
+            status: "ASSIGNED",
+            paymentStatus: { in: ["UNPAID", "FAILED"] },
+            OR: [{ stripePaymentIntentId: null }, { stripePaymentIntentId: paymentIntent.id }],
+        },
         data: {
             stripePaymentIntentId: paymentIntent.id,
             platformFee: split.fee,
             designerPayout: split.payout,
         },
     })
+    if (!saved.count) {
+        throw new LabActionError("CASE_CHANGED", "Η κατάσταση της εργασίας άλλαξε. Ανανέωσε τη σελίδα.", 409)
+    }
+    if (["succeeded", "processing", "canceled"].includes(paymentIntent.status) || !paymentIntent.client_secret) {
+        throw new LabActionError("PAYMENT_PENDING", "Δεν μπορεί να ξεκινήσει νέα πληρωμή. Ανανέωσε τη σελίδα για να δεις την κατάσταση.", 409)
+    }
 
     return {
         clientSecret: paymentIntent.client_secret as string,
@@ -230,13 +257,28 @@ export async function releaseCasePaymentInternal(caseId: string) {
 
     const designerProfileId = target.assignedDesignerId
     const payoutAmount = target.designerPayout
+    const transferGroup = caseTransferGroup(target.id)
 
-    const transfer = await stripe.transfers.create(
+    // A retry can happen after Stripe has expired the original idempotency key.
+    const previous = await stripe.transfers.list({ transfer_group: transferGroup, limit: 2 })
+    const existing = previous.data[0]
+    if (previous.has_more || previous.data.length > 1 || (existing && (
+        existing.reversed || existing.amount_reversed > 0 ||
+        existing.source_transaction !== target.stripeChargeId ||
+        existing.metadata.labCaseId !== target.id ||
+        existing.metadata.designerProfileId !== designerProfileId ||
+        existing.amount !== payoutCents || existing.currency !== LAB_CURRENCY
+    ))) {
+        console.error(`[lab] Transfer reconciliation required for case ${caseId}`)
+        return { released: false as const, reason: "reconciliation_required" as const }
+    }
+
+    const transfer = existing ?? await stripe.transfers.create(
         {
             amount: payoutCents,
             currency: LAB_CURRENCY,
             destination: accountId,
-            transfer_group: caseTransferGroup(target.id),
+            transfer_group: transferGroup,
             source_transaction: target.stripeChargeId,
             metadata: { labCaseId: target.id, designerProfileId },
         },
@@ -250,7 +292,7 @@ export async function releaseCasePaymentInternal(caseId: string) {
     try {
         await prisma.$transaction(async (tx) => {
             const updated = await tx.labCase.updateMany({
-                where: { id: target.id, paymentStatus: "HELD" },
+                where: { id: target.id, status: "COMPLETED", paymentStatus: "HELD" },
                 data: { paymentStatus: "RELEASED", stripeTransferId: transfer.id },
             })
 
@@ -280,9 +322,12 @@ export async function releaseCasePaymentInternal(caseId: string) {
 export async function refundCasePaymentInternal(caseId: string) {
     const target = await prisma.labCase.findUnique({
         where: { id: caseId },
-        select: { id: true, paymentStatus: true, stripePaymentIntentId: true },
+        select: { id: true, status: true, paymentStatus: true, stripePaymentIntentId: true },
     })
     if (!target) return { refunded: false as const, reason: "case_not_found" as const }
+    if (target.status !== "CANCELLED") {
+        return { refunded: false as const, reason: "case_not_cancelled" as const }
+    }
     if (target.paymentStatus === "REFUNDED") {
         return { refunded: true as const, reason: "already_refunded" as const }
     }
@@ -290,61 +335,36 @@ export async function refundCasePaymentInternal(caseId: string) {
         return { refunded: false as const, reason: "nothing_to_refund" as const }
     }
 
-    await stripe.refunds.create(
+    const refund = await stripe.refunds.create(
         { payment_intent: target.stripePaymentIntentId },
         { idempotencyKey: `lab:refund:${target.id}` }
     )
+    if (refund.status !== "succeeded") {
+        return { refunded: false as const, reason: "refund_pending" as const }
+    }
 
-    await prisma.labCase.update({
-        where: { id: target.id },
+    await prisma.labCase.updateMany({
+        where: { id: target.id, status: "CANCELLED", paymentStatus: "HELD" },
         data: { paymentStatus: "REFUNDED" },
     })
 
     return { refunded: true as const }
 }
 
-/**
- * Registers a Stripe event id. Returns false when the event was already
- * processed, so a webhook retry does not run the handler twice.
- *
- * A claim that was left behind by a process that died (the handler was
- * interrupted) is released after a few minutes: the event is then processed
- * again instead of being lost for good.
- */
-export async function claimWebhookEvent(eventId: string, type: string) {
-    const existing = await prisma.labWebhookEvent.findUnique({
-        where: { id: eventId },
-        select: { id: true, createdAt: true },
-    })
-
-    if (existing) {
-        const age = Date.now() - existing.createdAt.getTime()
-        if (age < WEBHOOK_CLAIM_TTL_MS) {
-            // The event is being processed (or was processed).
-            return false
-        }
-        // The previous attempt died: the claim is released.
-        await prisma.labWebhookEvent
-            .delete({ where: { id: eventId } })
-            .catch(() => undefined)
-    }
-
-    try {
-        await prisma.labWebhookEvent.create({ data: { id: eventId, type } })
+/** The completion marker and all database effects commit or roll back together. */
+export async function processLabWebhookEvent(
+    eventId: string,
+    type: string,
+    apply: (tx: Prisma.TransactionClient) => Promise<void>
+) {
+    return prisma.$transaction(async (tx) => {
+        await tx.labWebhookEvent.createMany({ data: { id: eventId, type }, skipDuplicates: true })
+        const claimed = await tx.labWebhookEvent.updateMany({
+            where: { id: eventId, completedAt: null },
+            data: { completedAt: new Date() },
+        })
+        if (!claimed.count) return false
+        await apply(tx)
         return true
-    } catch (error: unknown) {
-        const code =
-            typeof error === "object" && error !== null && "code" in error
-                ? (error as { code?: unknown }).code
-                : undefined
-        if (code === "P2002") return false
-        throw error
-    }
-}
-
-/** Releases the claim of an event, so that Stripe can retry it. */
-export async function releaseWebhookEvent(eventId: string) {
-    await prisma.labWebhookEvent
-        .delete({ where: { id: eventId } })
-        .catch(() => undefined)
+    })
 }

@@ -19,8 +19,10 @@ import {
     acceptLabOffer,
     approveDelivery,
     cancelLabCase,
+    releaseCasePayment,
     requestRevision,
     startProduction,
+    submitLabDelivery,
     submitLabOffer,
 } from "@/app/actions/lab"
 import { ChunkedUploader } from "@/components/lab/chunked-uploader"
@@ -53,7 +55,7 @@ function useActionState() {
 
 /* ------------------------------------------------------------------ offers */
 
-export function OfferForm({ caseId, priceHint }: { caseId: string; priceHint?: number | null }) {
+export function OfferForm({ caseId, priceHint, units }: { caseId: string; priceHint?: number | null; units: number }) {
     const { pending, error, run } = useActionState()
     const [price, setPrice] = useState(priceHint ? String(priceHint) : "")
     const [leadTime, setLeadTime] = useState("3")
@@ -61,19 +63,25 @@ export function OfferForm({ caseId, priceHint }: { caseId: string; priceHint?: n
 
     return (
         <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-2 sm:grid-cols-2">
+                <label className="space-y-1 text-sm">
+                    <span>Συνολική τιμή ({units} τεμ.) σε €</span>
                 <Input
-                    placeholder="Τιμή (€)"
+                    placeholder="π.χ. 120"
                     inputMode="numeric"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                 />
+                </label>
+                <label className="space-y-1 text-sm">
+                    <span>Χρόνος παράδοσης σε ημέρες</span>
                 <Input
-                    placeholder="Χρόνος παράδοσης (ημέρες)"
+                    placeholder="π.χ. 3"
                     inputMode="numeric"
                     value={leadTime}
                     onChange={(e) => setLeadTime(e.target.value)}
                 />
+                </label>
             </div>
             <Textarea
                 rows={3}
@@ -118,7 +126,7 @@ export function AcceptOfferButton({ caseId, offerId, disabled }: { caseId: strin
                 onClick={() => run(() => acceptLabOffer(caseId, offerId)).then((ok) => ok && window.location.reload())}
             >
                 {pending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Check className="h-4 w-4 mr-1" />}
-                Ανάθεση
+                Αποδοχή προσφοράς
             </Button>
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
         </div>
@@ -186,7 +194,7 @@ export function ApproveDeliveryButton({ caseId }: { caseId: string }) {
     )
 }
 
-export function CancelCaseButton({ caseId }: { caseId: string }) {
+export function CancelCaseButton({ caseId, retryRefund = false }: { caseId: string; retryRefund?: boolean }) {
     const { pending, error, run } = useActionState()
 
     return (
@@ -197,12 +205,12 @@ export function CancelCaseButton({ caseId }: { caseId: string }) {
                 className="text-red-600 hover:text-red-700"
                 disabled={pending}
                 onClick={() => {
-                    if (!window.confirm("Ακύρωση της εργασίας; Αν έχει γίνει πληρωμή, επιστρέφεται.")) return
+                    if (!retryRefund && !window.confirm("Ακύρωση της εργασίας; Αν έχει γίνει πληρωμή, επιστρέφεται.")) return
                     run(() => cancelLabCase(caseId)).then((ok) => ok && window.location.reload())
                 }}
             >
                 {pending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Ακύρωση εργασίας
+                {retryRefund ? "Δοκίμασε ξανά την επιστροφή" : "Ακύρωση εργασίας"}
             </Button>
             {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
         </div>
@@ -211,8 +219,29 @@ export function CancelCaseButton({ caseId }: { caseId: string }) {
 
 /* ------------------------------------------------------------ deliverables */
 
-export function DeliverableUpload({ caseId }: { caseId: string }) {
+export function PayoutRetryButton({ caseId }: { caseId: string }) {
+    const { pending, error, run } = useActionState()
+    const router = useRouter()
+    return (
+        <div className="space-y-2">
+            <Button size="sm" variant="outline" disabled={pending} onClick={() =>
+                run(async () => {
+                    const result = await releaseCasePayment(caseId)
+                    if (result.error) throw new Error(result.error)
+                }).then((ok) => { if (ok) router.refresh() })
+            }>
+                {pending ? "Αποδέσμευση…" : "Δοκίμασε ξανά την αποδέσμευση"}
+            </Button>
+            {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+        </div>
+    )
+}
+
+export function DeliverableUpload({ caseId, hasDrafts }: { caseId: string; hasDrafts: boolean }) {
     const [uploaded, setUploaded] = useState(0)
+    const [blocked, setBlocked] = useState(false)
+    const { pending, error, run } = useActionState()
+    const router = useRouter()
 
     return (
         <div className="space-y-3">
@@ -221,18 +250,22 @@ export function DeliverableUpload({ caseId }: { caseId: string }) {
                 kind="OUTPUT_STL"
                 accept=".stl,.obj,.3mf,.zip,.step,.stp,.pdf"
                 label="Ανέβασε ολοκληρωμένα αρχεία"
-                onCompleted={() => {
-                    setUploaded((count) => count + 1)
-                    // The work is only marked as delivered when at least one
-                    // file was really stored.
-                    setTimeout(() => window.location.reload(), 900)
-                }}
+                disabled={pending}
+                onBlockedChange={setBlocked}
+                onCompleted={() => setUploaded((count) => count + 1)}
             />
-            {uploaded > 0 && (
-                <p className="text-xs text-green-700">
-                    Τα αρχεία αποθηκεύτηκαν. Η εργασία σημειώθηκε ως παραδοτέα.
-                </p>
+            {(hasDrafts || uploaded > 0) && (
+                <p className="text-xs text-gray-600">Τα αποθηκευμένα αρχεία θα σταλούν όταν υποβάλεις την παράδοση.</p>
             )}
+            <Button disabled={pending || blocked || (!hasDrafts && !uploaded)} onClick={() =>
+                run(async () => {
+                    const result = await submitLabDelivery(caseId)
+                    if (result.error) throw new Error(result.error)
+                }).then((ok) => { if (ok) router.refresh() })
+            }>
+                {pending ? "Υποβολή…" : "Υποβολή παράδοσης"}
+            </Button>
+            {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
         </div>
     )
 }
@@ -240,6 +273,7 @@ export function DeliverableUpload({ caseId }: { caseId: string }) {
 /** The customer can add more files (photos, x-rays) to a running work. */
 export function CustomerFilesUpload({ caseId }: { caseId: string }) {
     const [uploaded, setUploaded] = useState(0)
+    const router = useRouter()
 
     return (
         <div className="space-y-3">
@@ -250,7 +284,7 @@ export function CustomerFilesUpload({ caseId }: { caseId: string }) {
                 label="Πρόσθετα αρχεία"
                 onCompleted={() => {
                     setUploaded((count) => count + 1)
-                    setTimeout(() => window.location.reload(), 900)
+                    router.refresh()
                 }}
             />
             {uploaded > 0 && (

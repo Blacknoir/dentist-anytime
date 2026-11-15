@@ -22,7 +22,7 @@ vi.mock("@/lib/stripe", () => ({
                 args,
             })),
         },
-        transfers: { create: transfers },
+        transfers: { create: transfers, list: async () => ({ data: [], has_more: false }) },
         refunds: { create: vi.fn(async () => ({ id: "re_test" })) },
         accounts: { retrieve: vi.fn(), create: vi.fn() },
         accountLinks: { create: vi.fn() },
@@ -122,7 +122,7 @@ describe("the whole journey of a work", () => {
         const { markCasePaymentHeldInternal, releaseCasePaymentInternal } = await import(
             "@/lib/lab-payments"
         )
-        const { uploadDesignerFiles, approveDelivery, startProduction } = await import(
+        const { uploadDesignerFiles, approveDelivery, startProduction, submitLabDelivery } = await import(
             "@/app/actions/lab"
         )
 
@@ -209,6 +209,14 @@ describe("the whole journey of a work", () => {
             new File([binaryStl()], "crown_final.stl", { type: "model/stl" })
         )
         const delivery = await uploadDesignerFiles(created.id, deliverable)
+        const draft = await prisma.labCase.findUnique({
+            where: { id: created.id },
+            select: { status: true, files: { where: { uploaderRole: "DESIGNER" } } },
+        })
+        expect(draft?.status).toBe("IN_PRODUCTION")
+        expect(draft?.files[0]?.submittedAt).toBeNull()
+        expect(await submitLabDelivery(created.id)).toEqual({ ok: true })
+
         expect(delivery.uploaded.length).toBe(1)
 
         const delivered = await prisma.labCase.findUnique({ where: { id: created.id } })

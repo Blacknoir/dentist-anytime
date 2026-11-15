@@ -137,3 +137,36 @@ export async function assertLabConsents(userId: string) {
         )
     }
 }
+
+export async function getLabCaseById(id: string) {
+    return prisma.labCase.findUnique({
+        where: { id },
+        include: {
+            // The customer name is only rendered for the owner and the admins.
+            customer: { select: { id: true, publicCode: true, role: true, name: true } },
+            assignedDesigner: {
+                include: {
+                    // The designer identity stays anonymous for everyone else.
+                    user: { select: { id: true, publicCode: true, image: true } },
+                    services: { where: { isActive: true } },
+                },
+            },
+            files: {
+                orderBy: { createdAt: "asc" },
+                select: {
+                    id: true, kind: true, fileName: true, fileSize: true, storagePath: true,
+                    uploaderRole: true, submittedAt: true,
+                },
+            },
+            offers: {
+                orderBy: { price: "asc" },
+                include: {
+                    designerProfile: {
+                        include: { user: { select: { id: true, publicCode: true, image: true } } },
+                    },
+                },
+            },
+            revisions: { orderBy: { createdAt: "desc" } },
+        },
+    })
+}

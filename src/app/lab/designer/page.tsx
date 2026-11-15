@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getLabActor } from "@/app/actions/lab"
 import { getDesignerDashboard, getDesignerStripeStatus } from "@/app/actions/lab-designer"
 import { FileRow, PaymentBadge, StatusBadge } from "@/components/lab/lab-components"
-import { DeliverableUpload, InlineNotice, OfferForm, StartProductionButton } from "@/components/lab/case-panel"
+import { DeliverableUpload, InlineNotice, OfferForm, PayoutRetryButton, StartProductionButton } from "@/components/lab/case-panel"
 import { StripeConnectCard } from "@/components/lab/stripe-connect-card"
 import { euros, formatDate, partyLabel } from "@/lib/lab"
 
@@ -166,7 +166,7 @@ export default async function DesignerDashboardPage({
                                         {target.files.length > 0 && (
                                             <div className="space-y-2">
                                                 <div className="text-xs font-bold uppercase text-gray-400">
-                                                    Αρχεία πελάτη
+                                                    Αρχεία εργασίας
                                                 </div>
                                                 {target.files.map((file) => (
                                                     <FileRow key={file.id} file={file} />
@@ -190,7 +190,7 @@ export default async function DesignerDashboardPage({
                                             </div>
                                         )}
 
-                                        {["ASSIGNED", "IN_PRODUCTION"].includes(target.status) && (
+                                        {target.paymentStatus === "HELD" && ["ASSIGNED", "IN_PRODUCTION"].includes(target.status) && (
                                             <div className="flex flex-wrap items-end gap-3">
                                                 {target.status === "ASSIGNED" && (
                                                     <div className="w-full sm:w-64">
@@ -198,7 +198,12 @@ export default async function DesignerDashboardPage({
                                                     </div>
                                                 )}
                                                 <div className="w-full sm:w-80">
-                                                    <DeliverableUpload caseId={target.id} />
+                                                    <DeliverableUpload
+                                                        caseId={target.id}
+                                                        hasDrafts={target.files.some((file) =>
+                                                            file.uploaderRole === "DESIGNER" && !file.submittedAt && file.storagePath !== "pending"
+                                                        )}
+                                                    />
                                                 </div>
                                             </div>
                                         )}
@@ -208,6 +213,12 @@ export default async function DesignerDashboardPage({
                                                 Τα αρχεία σου στάλθηκαν στον πελάτη. Περιμένετε έγκριση για την
                                                 αποδέσμευση της πληρωμής.
                                             </InlineNotice>
+                                        )}
+                                        {target.status === "COMPLETED" && target.paymentStatus === "HELD" && (
+                                            <div className="space-y-2">
+                                                <InlineNotice tone="warn">Η εργασία ολοκληρώθηκε. Η πληρωμή σου εκκρεμεί.</InlineNotice>
+                                                <PayoutRetryButton caseId={target.id} />
+                                            </div>
                                         )}
                                     </CardContent>
                                 </Card>
@@ -317,7 +328,7 @@ export default async function DesignerDashboardPage({
                                                     Έχεις ήδη στείλει προσφορά ({euros(existing.price)}).
                                                 </InlineNotice>
                                             ) : (
-                                                <OfferForm caseId={openCase.id} />
+                                                <OfferForm caseId={openCase.id} units={openCase.units} />
                                             )}
                                         </CardContent>
                                     </Card>

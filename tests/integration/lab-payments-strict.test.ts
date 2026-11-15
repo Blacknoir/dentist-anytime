@@ -5,9 +5,10 @@ import { createStripeTestDouble } from "../mocks/stripe-strict"
 // The strict double of Stripe: it rejects a transfer whose source is not a
 // charge, a wrong currency or a wrong amount.
 const stripeDouble = createStripeTestDouble()
+let activeUserId = "user_test"
 
 vi.mock("@/auth", () => ({
-    auth: async () => ({ user: { id: "user_test", email: "test@dentora.gr" } }),
+    auth: async () => ({ user: { id: activeUserId, email: "test@dentora.gr" } }),
 }))
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }))
@@ -92,7 +93,7 @@ describe("the escrow of the Lab", () => {
     })
 
     it("creates the payment intent with the agreed amount and the currency of the platform", async () => {
-        const { labCase } = await createCase({ paymentStatus: "UNPAID" })
+        const { labCase } = await createCase({ status: "ASSIGNED", paymentStatus: "UNPAID" })
         const { createCasePaymentIntentInternal } = await import("@/lib/lab-payments")
 
         const result = await createCasePaymentIntentInternal(labCase.id)
@@ -105,8 +106,22 @@ describe("the escrow of the Lab", () => {
         expect(intent.metadata.labCaseId).toBe(labCase.id)
     })
 
+    it("cannot start checkout while the webhook signing secret is missing", async () => {
+        const { customer, labCase } = await createCase({ status: "ASSIGNED", paymentStatus: "UNPAID" })
+        activeUserId = customer.id
+        vi.stubEnv("STRIPE_LAB_WEBHOOK_SECRET", "")
+        try {
+            const { createCasePaymentIntent } = await import("@/app/actions/lab")
+            expect(await createCasePaymentIntent(labCase.id)).toMatchObject({ error: expect.any(String) })
+            expect(stripeDouble.paymentIntents.size).toBe(0)
+        } finally {
+            activeUserId = "user_test"
+            vi.unstubAllEnvs()
+        }
+    })
+
     it("does not create a second payment intent for the same work", async () => {
-        const { labCase } = await createCase({ paymentStatus: "UNPAID" })
+        const { labCase } = await createCase({ status: "ASSIGNED", paymentStatus: "UNPAID" })
         const { createCasePaymentIntentInternal } = await import("@/lib/lab-payments")
 
         const first = await createCasePaymentIntentInternal(labCase.id)
@@ -275,8 +290,8 @@ describe("the release of the money", () => {
 
         transaction.mockRestore()
 
-        // The release is repeated: the same transfer (the idempotency key) and
-        // the state is written once.
+        // Stripe can age out an idempotency key before the next manual retry.
+        stripeDouble.idempotency.clear()
         const retried = await releaseCasePaymentInternal(labCase.id)
         expect(retried.released).toBe(true)
 
@@ -319,6 +334,40 @@ describe("the release of the money", () => {
         expect(profile?.earnings).toBe(108)
         expect(profile?.completedCases).toBe(1)
         expect(results.some((result) => result.released)).toBe(true)
+    })
+
+    it("cannot both refund and release when approval and cancellation race", async () => {
+        const { labCase, customer, designer, designerUser } = await createCase({ status: "DELIVERED" })
+        await connectDesigner(designer.id)
+        const intent = must(await stripeDouble.api.paymentIntents.create({
+            amount: 12000,
+            currency: "eur",
+            metadata: { labCaseId: labCase.id },
+        }))
+        intent.status = "succeeded"
+        await prisma.labCase.update({
+            where: { id: labCase.id },
+            data: { stripePaymentIntentId: intent.id, stripeChargeId: intent.latest_charge },
+        })
+        await prisma.labCaseFile.create({
+            data: {
+                caseId: labCase.id, kind: "OUTPUT_STL", fileName: "design.stl", fileSize: 84,
+                storagePath: "design.stl", uploadedById: designerUser.id, uploaderRole: "DESIGNER",
+                submittedAt: new Date(),
+            },
+        })
+
+        activeUserId = customer.id
+        try {
+            const { approveDelivery, cancelLabCase } = await import("@/app/actions/lab")
+            const results = await Promise.allSettled([approveDelivery(labCase.id), cancelLabCase(labCase.id)])
+            expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1)
+        } finally {
+            activeUserId = "user_test"
+        }
+        expect(stripeDouble.transfers.size + stripeDouble.refunds.size).toBe(1)
+        const work = await prisma.labCase.findUniqueOrThrow({ where: { id: labCase.id } })
+        expect(work.paymentStatus).toBe(work.status === "COMPLETED" ? "RELEASED" : "REFUNDED")
     })
 
     it("does not pay a work whose payment is not held", async () => {

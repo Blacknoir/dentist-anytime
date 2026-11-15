@@ -10,17 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { MATERIALS, PRIORITIES, SHADES, WORK_TYPES } from "@/lib/lab"
+import { inferFileKind, MATERIALS, PRIORITIES, SHADES, WORK_TYPES } from "@/lib/lab"
 import { uploadFileInChunks } from "@/lib/lab-upload-client"
 import { errorMessage } from "@/lib/error-message"
 import { cn } from "@/lib/utils"
 
-const MAX_SIZE_MB = 120
-
-export default function NewCaseForm() {
+export default function NewCaseForm({ maxFileSize }: { maxFileSize: number }) {
+    const maxSizeMb = Math.floor(maxFileSize / 1024 / 1024)
     const router = useRouter()
     const searchParams = useSearchParams()
     const { data: session, status } = useSession()
+    const requestId = useRef<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     const [form, setForm] = useState({
@@ -40,6 +40,7 @@ export default function NewCaseForm() {
     const [progress, setProgress] = useState(0)
     const [uploading, setUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [created, setCreated] = useState<{ id: string; code: string } | null>(null)
     const [done, setDone] = useState<string | null>(null)
 
     const designerId = useMemo(() => searchParams.get("designer") || "", [searchParams])
@@ -51,11 +52,11 @@ export default function NewCaseForm() {
         setForm((prev) => ({ ...prev, [key]: value }))
 
     const handleFiles = (list: FileList | null) => {
-        if (!list) return
+        if (!list || uploading || created) return
         const next = Array.from(list)
-        const tooBig = next.find((file) => file.size > MAX_SIZE_MB * 1024 * 1024)
+        const tooBig = next.find((file) => file.size > maxFileSize)
         if (tooBig) {
-            setError(`Το αρχείο ${tooBig.name} ξεπερνά τα ${MAX_SIZE_MB}MB.`)
+            setError(`Το αρχείο ${tooBig.name} ξεπερνά τα ${maxSizeMb}MB.`)
             return
         }
         setError(null)
@@ -77,100 +78,61 @@ export default function NewCaseForm() {
         setUploading(true)
         setError(null)
         setProgress(0)
-        setFileStates([])
-
-        // The id of the submit: a retry after a connection problem finds the
-        // work that was already created instead of creating a second one.
-        const requestId =
-            typeof crypto !== "undefined" && "randomUUID" in crypto
-                ? crypto.randomUUID()
-                : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-
         try {
-            const response = await fetch("/api/lab/cases", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({
-                    type: form.type,
-                    material: form.material,
-                    shade: form.shade,
-                    units: form.units,
-                    priority: form.priority,
-                    deadline: form.deadline,
-                    title: form.title,
-                    description: form.description,
-                    ...(designerId ? { designerId } : {}),
-                    clientRequestId: requestId,
-                }),
-            })
-
-            const payload = await response.json().catch(() => ({}))
-            if (!response.ok) {
-                throw new Error(payload?.error || "Η δημιουργία της εργασίας απέτυχε.")
+            let work = created
+            if (!work) {
+                requestId.current ??= crypto.randomUUID()
+                const response = await fetch("/api/lab/cases", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ ...form, designerId: designerId || undefined, clientRequestId: requestId.current }),
+                })
+                const payload = await response.json().catch(() => ({}))
+                if (!response.ok || typeof payload.id !== "string" || typeof payload.code !== "string") {
+                    throw new Error(payload.error || "Η δημιουργία της εργασίας απέτυχε.")
+                }
+                work = { id: payload.id, code: payload.code }
+                setCreated(work)
             }
 
-            const caseId = payload.id as string
-
-            // The files are uploaded one after the other in chunks. The work
-            // exists even when a file fails: the failed file can be uploaded
-            // again from the page of the work.
-            let uploaded = 0
-            const failures: string[] = []
-
-            for (const file of files) {
-                setFileStates((prev) => [
-                    ...prev,
-                    { name: file.name, status: "uploading", progress: 0 },
-                ])
+            const waiting = files.map((file, index) => ({ file, index }))
+                .filter(({ index }) => fileStates[index]?.status !== "done")
+            let failed = 0
+            for (const [position, { file, index }] of waiting.entries()) {
+                const patch = (update: (typeof fileStates)[number]) => {
+                    setFileStates((prev) => {
+                        const next = [...prev]
+                        next[index] = update
+                        return next
+                    })
+                }
+                patch({ name: file.name, status: "uploading", progress: 0 })
                 try {
                     await uploadFileInChunks({
                         file,
-                        caseId,
-                        kind: "INPUT_STL",
+                        caseId: work.id,
+                        kind: inferFileKind(file.name, "INPUT_STL"),
                         onProgress: (percent) => {
-                            setFileStates((prev) =>
-                                prev.map((item, index) =>
-                                    index === prev.length - 1 ? { ...item, progress: percent } : item
-                                )
-                            )
-                            setProgress(
-                                Math.round(((uploaded + percent / 100) / Math.max(files.length, 1)) * 100)
-                            )
+                            patch({ name: file.name, status: "uploading", progress: percent })
+                            setProgress(Math.round(((position + percent / 100) / waiting.length) * 100))
                         },
                     })
-                    uploaded += 1
-                    setFileStates((prev) =>
-                        prev.map((item, index) =>
-                            index === prev.length - 1
-                                ? { ...item, status: "done", progress: 100 }
-                                : item
-                        )
-                    )
+                    patch({ name: file.name, status: "done", progress: 100 })
                 } catch (uploadError: unknown) {
-                    failures.push(file.name)
-                    setFileStates((prev) =>
-                        prev.map((item, index) =>
-                            index === prev.length - 1
-                                ? {
-                                      ...item,
-                                      status: "error",
-                                      error: errorMessage(uploadError, "Η μεταφορά απέτυχε."),
-                                  }
-                                : item
-                        )
-                    )
+                    failed += 1
+                    patch({
+                        name: file.name,
+                        status: "error",
+                        progress: 0,
+                        error: errorMessage(uploadError, "Η μεταφορά απέτυχε."),
+                    })
                 }
             }
 
-            setProgress(100)
-
-            if (failures.length === 0) {
-                setDone(payload.code || "OK")
+            if (failed) {
+                setError("Η εργασία δημιουργήθηκε. Μπορείς να δοκιμάσεις ξανά μόνο τα αρχεία που απέτυχαν.")
             } else {
-                setDone(payload.code || "OK")
-                setError(
-                    `Η εργασία δημιουργήθηκε, αλλά ${failures.length} αρχεία δεν μεταφέρθηκαν. Μπορείς να τα ανεβάσεις ξανά από τη σελίδα της εργασίας.`
-                )
+                setDone(work.code)
             }
         } catch (submitError: unknown) {
             setError(errorMessage(submitError, "Η δημιουργία της εργασίας απέτυχε."))
@@ -240,7 +202,7 @@ export default function NewCaseForm() {
                                 <p className="text-gray-600 mt-1">Κωδικός εργασίας: {done}</p>
                             </div>
                             <div className="flex flex-wrap gap-3 justify-center">
-                                <Button onClick={() => router.push("/lab/cases")}>Οι εργασίες μου</Button>
+                                <Button onClick={() => router.push(`/lab/cases/${created?.id}`)}>Άνοιξε την εργασία</Button>
                                 <Button variant="outline" onClick={() => router.push("/lab/cases?scope=open")}>
                                     Δες τις ανοιχτές εργασίες
                                 </Button>
@@ -254,108 +216,110 @@ export default function NewCaseForm() {
                                 <CardTitle className="text-base">Στοιχεία εργασίας</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="type">Είδος εργασίας</Label>
-                                        <select
-                                            id="type"
-                                            value={form.type}
-                                            onChange={(e) => update("type", e.target.value)}
-                                            className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
-                                        >
-                                            {WORK_TYPES.map((item) => (
-                                                <option key={item} value={item}>
-                                                    {item}
-                                                </option>
-                                            ))}
-                                        </select>
+                                <fieldset disabled={uploading || !!created} className="min-w-0 space-y-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="type">Είδος εργασίας</Label>
+                                            <select
+                                                id="type"
+                                                value={form.type}
+                                                onChange={(e) => update("type", e.target.value)}
+                                                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                            >
+                                                {WORK_TYPES.map((item) => (
+                                                    <option key={item} value={item}>
+                                                        {item}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="material">Υλικό</Label>
+                                            <select
+                                                id="material"
+                                                value={form.material}
+                                                onChange={(e) => update("material", e.target.value)}
+                                                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                            >
+                                                {MATERIALS.map((item) => (
+                                                    <option key={item} value={item}>
+                                                        {item}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="shade">Απόχρωση</Label>
+                                            <select
+                                                id="shade"
+                                                value={form.shade}
+                                                onChange={(e) => update("shade", e.target.value)}
+                                                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                            >
+                                                {SHADES.map((item) => (
+                                                    <option key={item} value={item}>
+                                                        {item}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="units">Τεμάχια</Label>
+                                            <Input
+                                                id="units"
+                                                type="number"
+                                                min={1}
+                                                value={form.units}
+                                                onChange={(e) => update("units", Number(e.target.value))}
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="priority">Προτεραιότητα</Label>
+                                            <select
+                                                id="priority"
+                                                value={form.priority}
+                                                onChange={(e) => update("priority", e.target.value)}
+                                                className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
+                                            >
+                                                {PRIORITIES.map((item) => (
+                                                    <option key={item.value} value={item.value}>
+                                                        {item.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="deadline">Απαιτούμενη παράδοση</Label>
+                                            <Input
+                                                id="deadline"
+                                                type="date"
+                                                value={form.deadline}
+                                                onChange={(e) => update("deadline", e.target.value)}
+                                            />
+                                        </div>
                                     </div>
+
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="material">Υλικό</Label>
-                                        <select
-                                            id="material"
-                                            value={form.material}
-                                            onChange={(e) => update("material", e.target.value)}
-                                            className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
-                                        >
-                                            {MATERIALS.map((item) => (
-                                                <option key={item} value={item}>
-                                                    {item}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="shade">Απόχρωση</Label>
-                                        <select
-                                            id="shade"
-                                            value={form.shade}
-                                            onChange={(e) => update("shade", e.target.value)}
-                                            className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
-                                        >
-                                            {SHADES.map((item) => (
-                                                <option key={item} value={item}>
-                                                    {item}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="units">Τεμάχια</Label>
+                                        <Label htmlFor="title">Τίτλος (προαιρετικό)</Label>
                                         <Input
-                                            id="units"
-                                            type="number"
-                                            min={1}
-                                            value={form.units}
-                                            onChange={(e) => update("units", Number(e.target.value))}
+                                            id="title"
+                                            placeholder="π.χ. Στεφάνη #26 για τον ασθενή Ν. Α."
+                                            value={form.title}
+                                            onChange={(e) => update("title", e.target.value)}
                                         />
                                     </div>
+
                                     <div className="space-y-1.5">
-                                        <Label htmlFor="priority">Προτεραιότητα</Label>
-                                        <select
-                                            id="priority"
-                                            value={form.priority}
-                                            onChange={(e) => update("priority", e.target.value)}
-                                            className="w-full h-10 rounded-md border border-gray-200 bg-white px-3 text-sm"
-                                        >
-                                            {PRIORITIES.map((item) => (
-                                                <option key={item.value} value={item.value}>
-                                                    {item.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="deadline">Απαιτούμενη παράδοση</Label>
-                                        <Input
-                                            id="deadline"
-                                            type="date"
-                                            value={form.deadline}
-                                            onChange={(e) => update("deadline", e.target.value)}
+                                        <Label htmlFor="description">Περιγραφή & οδηγίες σχεδιασμού</Label>
+                                        <Textarea
+                                            id="description"
+                                            rows={6}
+                                            placeholder="Περιγράψε τι χρειάζεται: π.χ. στεφάνη #26, chamfer, αντίπαλο άθικτο, ζυγοστάθμιση σε σκάν."
+                                            value={form.description}
+                                            onChange={(e) => update("description", e.target.value)}
                                         />
                                     </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="title">Τίτλος (προαιρετικό)</Label>
-                                    <Input
-                                        id="title"
-                                        placeholder="π.χ. Στεφάνη #26 για τον ασθενή Ν. Α."
-                                        value={form.title}
-                                        onChange={(e) => update("title", e.target.value)}
-                                    />
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="description">Περιγραφή & οδηγίες σχεδιασμού</Label>
-                                    <Textarea
-                                        id="description"
-                                        rows={6}
-                                        placeholder="Περιγράψε τι χρειάζεται: π.χ. στεφάνη #26, chamfer, αντίπαλο άθικτο, ζυγοστάθμιση σε σκάν."
-                                        value={form.description}
-                                        onChange={(e) => update("description", e.target.value)}
-                                    />
-                                </div>
+                                </fieldset>
                             </CardContent>
                         </Card>
 
@@ -375,7 +339,7 @@ export default function NewCaseForm() {
                                     className="hidden"
                                 />
                                 <div
-                                    onClick={() => fileInputRef.current?.click()}
+                                    onClick={() => { if (!uploading && !created) fileInputRef.current?.click() }}
                                     className={cn(
                                         "cursor-pointer rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center transition-colors hover:border-primary-300 hover:bg-primary-50/40",
                                         files.length > 0 && "border-primary-300 bg-primary-50/40"
@@ -388,7 +352,7 @@ export default function NewCaseForm() {
                                             : "Κάνε κλικ για να επιλέξεις αρχεία"}
                                     </p>
                                     <p className="text-xs text-gray-400 mt-1">
-                                        STL, OBJ, 3MF, ZIP, STEP, PDF, JPG, PNG (έως {MAX_SIZE_MB}MB ανά αρχείο)
+                                        STL, OBJ, 3MF, ZIP, STEP, PDF, JPG, PNG (έως {maxSizeMb}MB ανά αρχείο)
                                     </p>
                                 </div>
 
@@ -421,7 +385,7 @@ export default function NewCaseForm() {
                                                                     ? ` · ${state.progress}%`
                                                                     : ""}
                                                             </span>
-                                                            {!uploading && (
+                                                            {!uploading && !created && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() =>
@@ -475,10 +439,10 @@ export default function NewCaseForm() {
 
                         <div className="flex justify-end gap-3">
                             <Button type="button" variant="outline" asChild>
-                                <Link href="/lab/cases">Ακύρωση</Link>
+                                <Link href={created ? `/lab/cases/${created.id}` : "/lab/cases"}>{created ? "Άνοιξε την εργασία" : "Ακύρωση"}</Link>
                             </Button>
                             <Button type="submit" disabled={uploading}>
-                                {uploading ? "Αποστολή…" : "Δημιούργησε εργασία"}
+                                {uploading ? "Αποστολή…" : created ? "Επανάληψη αποτυχημένων αρχείων" : "Δημιούργησε εργασία"}
                             </Button>
                         </div>
                     </form>

@@ -177,16 +177,23 @@ describe("the webhook of the Lab", () => {
             latest_charge: intent.latest_charge,
         })
 
-        const first = await postEvent(event)
-        const second = await postEvent(event)
-
-        expect(first.status).toBe(200)
-        expect(second.status).toBe(200)
-        expect(await second.json()).toMatchObject({ duplicate: true })
+        const responses = await Promise.all([postEvent(event), postEvent(event)])
+        expect(responses.map((response) => response.status)).toEqual([200, 200])
+        const bodies = await Promise.all(responses.map((response) => response.json()))
+        expect(bodies.filter((body) => body.duplicate)).toHaveLength(1)
         expect(await prisma.labWebhookEvent.count({ where: { id: "evt_retry" } })).toBe(1)
+
+        const old = new Date(Date.now() - 2 * 86400 * 1000)
+        await prisma.labWebhookEvent.update({
+            where: { id: "evt_retry" },
+            data: { createdAt: old, completedAt: old },
+        })
+        expect(await (await postEvent(event)).json()).toMatchObject({ duplicate: true })
+        const saved = await prisma.labWebhookEvent.findUnique({ where: { id: "evt_retry" } })
+        expect(saved?.completedAt).toEqual(old)
     })
 
-    it("processes an event again when the claim of a dead process is too old", async () => {
+    it("replays an event with an unconfirmed claim from the old handler", async () => {
         const { labCase } = await createCase()
         const intent = must(
             await stripeDouble.api.paymentIntents.create({
@@ -217,6 +224,29 @@ describe("the webhook of the Lab", () => {
 
         const updated = await prisma.labCase.findUnique({ where: { id: labCase.id } })
         expect(updated?.paymentStatus).toBe("HELD")
+    })
+
+    it("rolls back the marker and case update if processing stops before commit", async () => {
+        const { labCase } = await createCase()
+        const { processLabWebhookEvent } = await import("@/lib/lab-payments")
+        await expect(processLabWebhookEvent("evt_rollback", "payment_intent.succeeded", async (tx) => {
+            await tx.labCase.update({ where: { id: labCase.id }, data: { paymentStatus: "HELD" } })
+            throw new Error("interrupted before commit")
+        })).rejects.toThrow("interrupted before commit")
+        expect(await prisma.labWebhookEvent.findUnique({ where: { id: "evt_rollback" } })).toBeNull()
+        const unchanged = await prisma.labCase.findUnique({ where: { id: labCase.id } })
+        expect(unchanged?.paymentStatus).toBe("UNPAID")
+
+        const response = await postEvent(paymentIntentEvent("evt_rollback", {
+            id: "pi_retry",
+            amount: 12000,
+            currency: "eur",
+            metadata: { labCaseId: labCase.id },
+            latest_charge: "ch_retry",
+        }))
+        expect(response.status).toBe(200)
+        const saved = await prisma.labWebhookEvent.findUnique({ where: { id: "evt_rollback" } })
+        expect(saved?.completedAt).toBeInstanceOf(Date)
     })
 
     it("does not mark a work as paid when the amount does not match", async () => {
@@ -299,6 +329,11 @@ describe("the webhook of the Lab", () => {
             })
         )
 
+        await prisma.labCase.update({
+            where: { id: labCase.id },
+            data: { stripePaymentIntentId: intent.id },
+        })
+
         // The payment fails first...
         const failed = {
             id: "evt_failed",
@@ -342,7 +377,8 @@ describe("the webhook of the Lab", () => {
                 object: {
                     object: "charge",
                     id: intent.latest_charge,
-                    metadata: intent.metadata,
+                    payment_intent: intent.id,
+                    refunded: true,
                 },
             },
         })

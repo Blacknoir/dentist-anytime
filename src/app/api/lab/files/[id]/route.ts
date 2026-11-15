@@ -51,12 +51,14 @@ export async function GET(
 
     const designerProfileId = user?.designerProfile?.id ?? null
     const isOwner = file.case.customerId === session.user.id
-    const isAssignedDesigner = !!designerProfileId && file.case.assignedDesignerId === designerProfileId
+    const isAssignedDesigner = user?.role === "DESIGNER" && !!designerProfileId &&
+        file.case.assignedDesignerId === designerProfileId
     const isAdmin = user?.role === "ADMIN"
 
     // Only the case owner, the designer the work was assigned to and
     // authorised compliance officers may open case files.
-    if (!isOwner && !isAssignedDesigner && !isAdmin) {
+    const ownerCanDownload = isOwner && (file.uploaderRole !== "DESIGNER" || !!file.submittedAt)
+    if (file.storagePath === "pending" || (!ownerCanDownload && !isAssignedDesigner && !isAdmin)) {
         await recordFileAccess({
             fileId: file.id,
             caseId: file.caseId,

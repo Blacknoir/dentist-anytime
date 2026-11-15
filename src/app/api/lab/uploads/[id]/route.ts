@@ -8,7 +8,7 @@ import {
     UPLOAD_CHUNK_BYTES,
 } from "@/lib/lab-uploads"
 import { prisma } from "@/lib/prisma"
-import { OUTPUT_FILE_KINDS, type LabFileKind } from "@/lib/lab"
+import { INPUT_FILE_KINDS, OUTPUT_FILE_KINDS, type LabFileKind } from "@/lib/lab"
 
 // One chunk of a file. The body is the raw binary content of the chunk.
 export async function PUT(
@@ -67,7 +67,7 @@ export async function POST(
 
         const session = await prisma.labUploadSession.findUnique({
             where: { id },
-            select: { id: true, userId: true, caseId: true, kind: true },
+            select: { id: true, userId: true, caseId: true, kind: true, status: true, checksum: true },
         })
         if (!session) {
             return NextResponse.json({ error: "Η μεταφορά δεν βρέθηκε." }, { status: 404 })
@@ -82,6 +82,9 @@ export async function POST(
         // A portfolio image is not a case file: it is public and belongs to
         // the profile of the designer or of the lab.
         if (targetType === "portfolio") {
+            if (session.caseId || session.kind !== "PORTFOLIO") {
+                return NextResponse.json({ error: "Η μεταφορά δεν ανήκει στο portfolio." }, { status: 400 })
+            }
             const ownerType = String(body?.ownerType || "DESIGNER") as "DESIGNER" | "LAB"
             if (ownerType !== "DESIGNER" && ownerType !== "LAB") {
                 return NextResponse.json({ error: "Μη έγκυρος τύπος portfolio." }, { status: 400 })
@@ -101,11 +104,20 @@ export async function POST(
         }
 
         const caseId = String(body?.caseId || session.caseId || "").trim()
-        if (!caseId) {
+        if (!caseId || caseId !== session.caseId || kind !== session.kind) {
             return NextResponse.json(
                 { error: "Η μεταφορά δεν ανήκει σε εργασία." },
                 { status: 400 }
             )
+        }
+        if (session.status === "COMPLETED" && checksum?.toLowerCase() === session.checksum) {
+            const stored = await prisma.labCaseFile.findFirst({
+                where: { id, caseId, uploadedById: actor.userId, storagePath: { not: "pending" } },
+                select: { storageProvider: true },
+            })
+            if (stored) {
+                return NextResponse.json({ fileId: id, checksum: session.checksum, provider: stored.storageProvider })
+            }
         }
 
         const labCase = await prisma.labCase.findUnique({
@@ -118,7 +130,7 @@ export async function POST(
 
         const isOwner = labCase.customerId === actor.userId
         const isAssigned =
-            !!actor.designerProfileId && labCase.assignedDesignerId === actor.designerProfileId
+            actor.isDesigner && !!actor.designerProfileId && labCase.assignedDesignerId === actor.designerProfileId
 
         // The uploader role is derived from the session, never from the client:
         // a customer cannot deliver the files of a work.
@@ -144,11 +156,16 @@ export async function POST(
                     { status: 400 }
                 )
             }
-        } else if (!isOwner && !actor.isAdmin) {
-            return NextResponse.json(
-                { error: "Δεν έχεις δικαίωμα να ανεβάσεις αρχεία σε αυτή την εργασία." },
-                { status: 403 }
-            )
+        } else {
+            if (!isOwner && !actor.isAdmin) {
+                return NextResponse.json(
+                    { error: "Δεν έχεις δικαίωμα να ανεβάσεις αρχεία σε αυτή την εργασία." },
+                    { status: 403 }
+                )
+            }
+            if (!INPUT_FILE_KINDS.includes(kind)) {
+                return NextResponse.json({ error: "Μη έγκυρος τύπος αρχείου πελάτη." }, { status: 400 })
+            }
         }
 
         const result = await completeUploadSession({

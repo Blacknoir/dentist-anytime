@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation"
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
 import { getLabActor } from "@/app/actions/lab"
 import { getDesignerProfile, getLabProfile } from "@/app/actions/lab-designer"
 import { listOwnPortfolio } from "@/app/actions/lab-portfolio"
@@ -68,7 +70,14 @@ export default async function DesignerProfilePage() {
 
                 {ownerType && (
                     <section className="mt-10">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-1">Portfolio</h2>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                            <h2 className="text-2xl font-bold text-gray-900">Portfolio</h2>
+                            <Button asChild variant="outline" size="sm">
+                                <Link href={designer ? `/lab/designers/${designer.id}` : `/lab/labs/${lab?.id}`}>
+                                    Δες το δημόσιο προφίλ
+                                </Link>
+                            </Button>
+                        </div>
                         <p className="text-sm text-gray-600 mb-5">
                             Δημόσιες εικόνες από τις εργασίες σου. Οι φωτογραφίες των πελατών δεν
                             δημοσιεύονται ποτέ.

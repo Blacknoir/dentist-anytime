@@ -21,6 +21,7 @@ export default defineConfig({
         setupFiles: ["./tests/setup.ts"],
         env: {
             DATABASE_URL: testDatabaseUrl,
+            STRIPE_LAB_WEBHOOK_SECRET: "whsec_local_lab_tests",
             AUTH_SECRET: "test-secret-for-the-lab-tests",
             LAB_FILE_ENCRYPTION_KEY: "test-encryption-key",
             LAB_EVIDENCE_SECRET: "test-evidence-secret",

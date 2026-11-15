@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { AlertCircle, CheckCircle2, Loader2, RotateCcw, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { uploadFileInChunks } from "@/lib/lab-upload-client"
@@ -31,6 +31,7 @@ type ChunkedUploaderProps = {
     label?: string
     onCompleted?: (result: { fileId: string; name: string }) => void
     onError?: (message: string) => void
+    onBlockedChange?: (blocked: boolean) => void
 }
 
 export function ChunkedUploader({
@@ -42,12 +43,15 @@ export function ChunkedUploader({
     label = "Ανέβασε αρχεία",
     onCompleted,
     onError,
+    onBlockedChange,
 }: ChunkedUploaderProps) {
     const [items, setItems] = useState<UploadItemState[]>([])
     const [uploading, setUploading] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
     const filesRef = useRef<Map<string, File>>(new Map())
     const keyCounter = useRef(0)
+    const blocked = uploading || items.some((item) => item.status === "error")
+    useEffect(() => { onBlockedChange?.(blocked) }, [blocked, onBlockedChange])
 
     const patch = useCallback((key: string, values: Partial<UploadItemState>) => {
         setItems((prev) => prev.map((item) => (item.key === key ? { ...item, ...values } : item)))
@@ -58,12 +62,14 @@ export function ChunkedUploader({
             patch(key, { status: "uploading", progress: 0, error: undefined })
 
             try {
-                patch(key, { status: "processing", progress: 1 })
                 const result = await uploadFileInChunks({
                     file,
                     caseId,
                     kind,
-                    onProgress: (percent) => patch(key, { progress: percent }),
+                    onProgress: (percent) => patch(key, {
+                        progress: percent,
+                        status: percent >= 98 ? "processing" : "uploading",
+                    }),
                 })
 
                 patch(key, { status: "done", progress: 100 })
@@ -172,7 +178,7 @@ export function ChunkedUploader({
                                 </span>
                                 <span className="text-xs text-gray-500 shrink-0">
                                     {item.status === "uploading" || item.status === "processing"
-                                        ? `${item.progress}%`
+                                        ? item.status === "processing" ? "Αποθήκευση…" : `${item.progress}%`
                                         : item.status === "done"
                                           ? "Ολοκληρώθηκε"
                                           : item.status === "error"
@@ -203,6 +209,7 @@ export function ChunkedUploader({
                                         type="button"
                                         size="sm"
                                         variant="outline"
+                                        disabled={uploading || disabled}
                                         onClick={() => retry(item.key)}
                                     >
                                         <RotateCcw className="h-3.5 w-3.5 mr-1" /> Επανάληψη
@@ -211,6 +218,7 @@ export function ChunkedUploader({
                                         type="button"
                                         size="sm"
                                         variant="ghost"
+                                        disabled={uploading || disabled}
                                         onClick={() => remove(item.key)}
                                     >
                                         Αφαίρεση

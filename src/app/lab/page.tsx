@@ -5,11 +5,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { prisma } from "@/lib/prisma"
 import { CaseCard, DesignerCard } from "@/components/lab/lab-components"
 import { LAB_PLATFORM_FEE_RATE, euros } from "@/lib/lab"
+import { getLabActor } from "@/lib/lab-domain"
 
 export const dynamic = "force-dynamic"
 
 export default async function LabHomePage() {
-    const [openCases, designerCount, completedCases, openCaseList, designers] = await Promise.all([
+    const [actor, openCases, designerCount, completedCases, openCaseList, designers] = await Promise.all([
+        getLabActor(),
         prisma.labCase.count({ where: { status: { in: ["OPEN", "QUOTED"] } } }),
         prisma.designerProfile.count(),
         prisma.labCase.count({ where: { status: "COMPLETED" } }),
@@ -32,6 +34,11 @@ export default async function LabHomePage() {
             },
         }),
     ])
+    const primaryAction = actor?.isDesigner
+        ? { href: "/lab/designer", label: "Δες αιτήματα και εργασίες" }
+        : actor?.isCustomer
+          ? { href: "/lab/new", label: "Δημιούργησε εργασία" }
+          : { href: "/lab/login", label: actor ? "Επαγγελματική ένταξη" : "Σύνδεση στο Lab" }
 
     return (
         <div className="pb-20">
@@ -51,20 +58,19 @@ export default async function LabHomePage() {
                         </p>
                         <div className="mt-7 flex flex-wrap gap-3">
                             <Button size="lg" asChild>
-                                <Link href="/lab/new">
-                                    Δημιούργεσε εργασία
+                                <Link href={primaryAction.href}>
+                                    {primaryAction.label}
                                     <ArrowRight className="h-4 w-4 ml-2" />
                                 </Link>
                             </Button>
                             <Button size="lg" variant="outline" asChild>
                                 <Link href="/lab/designers">Δες CAD designers</Link>
                             </Button>
-                            <Button size="lg" variant="outline" asChild>
-                                <Link href="/lab/login">Είσαι οδοντίατρος; Σύνδεση</Link>
-                            </Button>
-                            <Button size="lg" variant="ghost" asChild>
-                                <Link href="/lab/register">Γίνε CAD designer</Link>
-                            </Button>
+                            {!actor && (
+                                <Button size="lg" variant="ghost" asChild>
+                                    <Link href="/lab/register">Εγγραφή στο Lab</Link>
+                                </Button>
+                            )}
                         </div>
                     </div>
 

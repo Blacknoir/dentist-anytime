@@ -82,7 +82,7 @@ export async function uploadFileInChunks(input: {
 
     onProgress?.(98)
 
-    const completeRes = await fetch(`/api/lab/uploads/${session.sessionId}`, {
+    const complete = () => fetch(`/api/lab/uploads/${session.sessionId}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -93,6 +93,13 @@ export async function uploadFileInChunks(input: {
         }),
         signal,
     })
+    let completeRes: Response
+    try {
+        completeRes = await complete()
+    } catch (error) {
+        if (signal?.aborted || completeExtra?.target === "portfolio") throw error
+        completeRes = await complete()
+    }
     const payload = await completeRes.json().catch(() => ({}))
     if (!completeRes.ok) {
         throw new Error(payload?.error || "Η αποθήκευση του αρχείου απέτυχε.")

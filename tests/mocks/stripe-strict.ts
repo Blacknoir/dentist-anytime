@@ -41,6 +41,7 @@ export type FakeRefund = {
     id: string
     object: "refund"
     payment_intent: string
+    status: "succeeded"
 }
 
 export type FakeAccount = {
@@ -183,6 +184,11 @@ export function createStripeTestDouble() {
         },
 
         transfers: {
+            async list(params: { transfer_group?: string; limit?: number }) {
+                const matches = [...transfers.values()].filter((transfer) => transfer.transfer_group === params.transfer_group)
+                const limit = params.limit ?? 10
+                return { data: matches.slice(0, limit), has_more: matches.length > limit }
+            },
             async create(params: StripeParams, options?: { idempotencyKey?: string }) {
                 const existing = findByKey("tr", options?.idempotencyKey)
                 if (existing) return transfers.get(existing)
@@ -284,6 +290,7 @@ export function createStripeTestDouble() {
                     id,
                     object: "refund",
                     payment_intent: paymentIntent.id,
+                    status: "succeeded",
                 }
                 refunds.set(id, refund)
                 remember("refund", options?.idempotencyKey, id)

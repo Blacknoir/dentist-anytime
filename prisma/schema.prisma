@@ -287,6 +287,7 @@ model LabWebhookEvent {
   id        String   @id
   type      String
   createdAt DateTime @default(now())
+  completedAt DateTime?
 
   @@index([type])
 }
@@ -352,6 +353,7 @@ model LabCaseFile {
   uploadedById   String
   uploadedBy     User     @relation(fields: [uploadedById], references: [id])
   uploaderRole   String   @default("CUSTOMER") // CUSTOMER, DESIGNER
+  submittedAt    DateTime?
   createdAt      DateTime @default(now())
 
   @@index([caseId])

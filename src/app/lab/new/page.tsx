@@ -1,6 +1,9 @@
 import { Suspense } from "react"
 import { Loader2 } from "lucide-react"
 import NewCaseForm from "@/components/lab/new-case-form"
+import { effectiveMaxFileSize, getUploadLimits } from "@/lib/lab-uploads"
+
+export const dynamic = "force-dynamic"
 
 export default function NewLabCasePage() {
     return (
@@ -11,7 +14,7 @@ export default function NewLabCasePage() {
                 </div>
             }
         >
-            <NewCaseForm />
+            <NewCaseForm maxFileSize={effectiveMaxFileSize(getUploadLimits().provider)} />
         </Suspense>
     )
 }

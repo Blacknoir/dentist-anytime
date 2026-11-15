@@ -50,6 +50,10 @@ export function getForcedProvider(): StorageProvider | null {
     return null
 }
 
+export function getLabStorageProvider(): StorageProvider {
+    return getForcedProvider() ?? (isBlobConfigured() ? "blob" : process.env.VERCEL ? "db" : "local")
+}
+
 export function getLocalUploadRoot() {
     // LAB_UPLOAD_DIR allows pointing the local fallback somewhere writable
     // (e.g. /tmp on serverless hosts). Vercel needs BLOB_READ_WRITE_TOKEN.
@@ -118,12 +122,10 @@ export async function storeLabFile(params: {
 }): Promise<{ storagePath: string; storageProvider: StorageProvider }> {
     const objectPath = buildStoragePath(params.caseId, params.fileName)
     const payload = encryptBuffer(params.body)
-    const forced = getForcedProvider()
+    const provider = getLabStorageProvider()
 
-    if (forced !== "db") {
-        const useBlob = forced === "blob" || (forced === null && isBlobConfigured())
-
-        if (useBlob) {
+    if (provider !== "db") {
+        if (provider === "blob") {
             try {
                 const url = await writeToBlob(objectPath, payload)
                 return { storagePath: url, storageProvider: "blob" }
@@ -142,7 +144,7 @@ export async function storeLabFile(params: {
         }
     }
 
-    if (payload.length > MAX_DATABASE_UPLOAD_BYTES) {
+    if (params.body.length > MAX_DATABASE_UPLOAD_BYTES) {
         throw new Error(
             "Το αρχείο είναι πολύ μεγάλο για την αποθήκευση στη βάση. Ρύθμισε BLOB_READ_WRITE_TOKEN για αποθήκευση στο Vercel Blob."
         )
