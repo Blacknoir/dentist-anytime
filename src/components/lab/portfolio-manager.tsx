@@ -86,13 +86,15 @@ export function PortfolioManager({
     }
 
     const handleUpload = async (fileList: FileList | null) => {
-        if (!fileList || fileList.length === 0) return
+        if (!fileList || fileList.length === 0 || uploading || pending) return
         setError(null)
         setMessage(null)
         setUploading(true)
         setProgress(0)
 
         const files = Array.from(fileList).slice(0, 5)
+        let uploaded = 0
+        const failures: string[] = []
 
         for (const file of files) {
             try {
@@ -109,13 +111,16 @@ export function PortfolioManager({
                         category: "",
                     },
                 })
+                uploaded += 1
             } catch (err: unknown) {
-                setError(errorMessage(err, "Η μεταφορά της εικόνας απέτυχε."))
+                failures.push(`${file.name}: ${errorMessage(err, "Η μεταφορά της εικόνας απέτυχε.")}`)
             }
         }
 
         setUploading(false)
         setProgress(0)
+        if (failures.length) setError(failures.join(" "))
+        if (uploaded) setMessage(`Αποθηκεύτηκαν ${uploaded} εικόνες στο portfolio σου.`)
         if (fileRef.current) fileRef.current.value = ""
         router.refresh()
     }
@@ -154,6 +159,7 @@ export function PortfolioManager({
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
                     multiple
+                    disabled={uploading || pending}
                     onChange={(e) => handleUpload(e.target.files)}
                     className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary-50 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-primary-700"
                 />

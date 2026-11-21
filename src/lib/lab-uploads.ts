@@ -12,6 +12,7 @@ import { sha256 } from "@/lib/lab-crypto"
 import { getLabStorageProvider, hasAcceptedExtension, storeLabFile, MAX_UPLOAD_BYTES, MAX_DATABASE_UPLOAD_BYTES } from "@/lib/lab-storage"
 import { INPUT_FILE_KINDS, OUTPUT_FILE_KINDS, type LabFileKind } from "@/lib/lab"
 import { LabActionError } from "@/lib/lab-domain"
+import { MAX_PORTFOLIO_IMAGE_BYTES } from "@/lib/lab-portfolio"
 
 /** Size of one chunk. Must stay below the body limit of the host (4.5MB). */
 export const UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024
@@ -67,7 +68,9 @@ export async function createUploadSession(input: {
     kind?: string | null
 }) {
     const limits = getUploadLimits()
-    const maxFileSize = effectiveMaxFileSize(limits.provider)
+    const maxFileSize = input.kind === "PORTFOLIO"
+        ? MAX_PORTFOLIO_IMAGE_BYTES
+        : effectiveMaxFileSize(limits.provider)
 
     if (!input.fileName || input.fileName.length > 200) {
         throw new LabActionError("VALIDATION", "Μη έγκυρο όνομα αρχείου.")
@@ -75,7 +78,7 @@ export async function createUploadSession(input: {
     if (input.kind !== "PORTFOLIO" && !hasAcceptedExtension(input.fileName)) {
         throw new LabActionError("VALIDATION", "Ο τύπος του αρχείου δεν υποστηρίζεται.")
     }
-    if (!Number.isFinite(input.fileSize) || input.fileSize <= 0) {
+    if (!Number.isSafeInteger(input.fileSize) || input.fileSize <= 0) {
         throw new LabActionError("VALIDATION", "Το αρχείο είναι κενό.")
     }
     if (input.fileSize > maxFileSize) {
@@ -85,6 +88,7 @@ export async function createUploadSession(input: {
         )
     }
     if (input.kind) assertUploadKind(input.kind)
+    await cleanupExpiredUploadSessions()
 
     const session = await prisma.labUploadSession.create({
         data: {
@@ -150,7 +154,8 @@ export async function appendUploadChunk(input: {
     if (!Number.isInteger(input.index) || input.index < 0 || input.index >= chunkCount) {
         throw new LabActionError("VALIDATION", "Μη έγκυρο τμήμα αρχείου.")
     }
-    if (input.data.length === 0 || input.data.length > UPLOAD_CHUNK_BYTES) {
+    const expectedSize = Math.min(UPLOAD_CHUNK_BYTES, session.fileSize - input.index * UPLOAD_CHUNK_BYTES)
+    if (input.data.length !== expectedSize) {
         throw new LabActionError("VALIDATION", "Μη έγκυρο μέγεθος τμήματος αρχείου.")
     }
 
@@ -160,30 +165,24 @@ export async function appendUploadChunk(input: {
         create: { sessionId: session.id, index: input.index, data: input.data },
     })
 
-    const chunks = await prisma.labUploadChunk.findMany({
-        where: { sessionId: session.id },
-        select: { index: true, data: true },
-        orderBy: { index: "asc" },
-    })
+    const received = await prisma.$queryRaw<{ bytes: bigint; count: bigint }[]>`
+        SELECT COALESCE(SUM(octet_length("data")), 0) AS bytes, COUNT(*) AS count
+        FROM "LabUploadChunk" WHERE "sessionId" = ${session.id}
+    `
 
-    const receivedBytes = chunks.reduce((sum, chunk) => sum + chunk.data.length, 0)
+    const receivedBytes = Number(received[0].bytes)
 
     await prisma.labUploadSession.update({
         where: { id: session.id },
         data: { receivedBytes, status: "UPLOADING" },
     })
 
-    return { receivedBytes, chunksStored: chunks.length, chunkCount }
+    return { receivedBytes, chunksStored: Number(received[0].count), chunkCount }
 }
 
 /**
- * Assembles the chunks, verifies the checksum and stores the file encrypted.
- * The file row is only created when the storage really worked.
- */
-/**
- * Assembles the chunks of a session and verifies the checksum. The file is
- * not stored yet: the caller decides what happens with it (case file or
- * portfolio image).
+ * Assembles the chunks of a session and verifies the checksum.
+ * The caller decides whether it is a private case file or a portfolio image.
  */
 export async function assembleUploadSession(input: {
     sessionId: string
@@ -192,22 +191,14 @@ export async function assembleUploadSession(input: {
 }) {
     const session = await prisma.labUploadSession.findUnique({
         where: { id: input.sessionId },
-        select: {
-            id: true,
-            userId: true,
-            caseId: true,
-            fileName: true,
-            fileSize: true,
-            mimeType: true,
-            kind: true,
-            receivedBytes: true,
-            status: true,
-        },
     })
 
     if (!session) throw new LabActionError("NOT_FOUND", "Η μεταφορά δεν βρέθηκε.", 404)
     if (session.userId !== input.userId) {
         throw new LabActionError("FORBIDDEN", "Δεν έχεις δικαίωμα σε αυτή τη μεταφορά.", 403)
+    }
+    if (session.expiresAt.getTime() < Date.now()) {
+        throw new LabActionError("EXPIRED", "Η μεταφορά έχει λήξει. Δοκίμασε ξανά.", 410)
     }
     if (session.status === "COMPLETED") {
         throw new LabActionError("ALREADY_DONE", "Η μεταφορά ολοκληρώθηκε ήδη.", 409)
@@ -243,7 +234,7 @@ export async function assembleUploadSession(input: {
         throw new LabActionError("CHECKSUM_MISMATCH", "Το αρχείο δεν έφτασε ακέραιο. Δοκίμασε ξανά.", 409)
     }
 
-    return { body, digest: sha256(body), session }
+    return { body, digest, session }
 }
 
 /**
@@ -348,6 +339,10 @@ export async function completePortfolioUpload(input: {
         checksum: input.checksum,
     })
 
+    if (session.kind !== "PORTFOLIO" || session.caseId) {
+        throw new LabActionError("VALIDATION", "Η μεταφορά δεν ανήκει στο portfolio.")
+    }
+
     const image = validatePortfolioImage(body)
 
     const title = input.title?.trim() || session.fileName.replace(/\.[^.]+$/, "")
@@ -364,6 +359,7 @@ export async function completePortfolioUpload(input: {
 
     const item = await prisma.portfolioItem.create({
         data: {
+            id: session.id,
             ownerType: input.ownerType,
             designerProfileId: input.ownerType === "DESIGNER" ? owner.id : null,
             labProfileId: input.ownerType === "LAB" ? owner.id : null,
@@ -384,16 +380,17 @@ export async function completePortfolioUpload(input: {
     try {
         const stored = await storePortfolioImage(item.id, body)
 
-        await prisma.portfolioItem.update({
-            where: { id: item.id },
-            data: { storagePath: stored.storagePath, storageProvider: stored.storageProvider },
-        })
-
-        await prisma.labUploadSession.update({
-            where: { id: session.id },
-            data: { status: "COMPLETED", checksum: digest },
-        })
-        await prisma.labUploadChunk.deleteMany({ where: { sessionId: session.id } })
+        await prisma.$transaction([
+            prisma.portfolioItem.update({
+                where: { id: item.id },
+                data: { storagePath: stored.storagePath, storageProvider: stored.storageProvider },
+            }),
+            prisma.labUploadSession.update({
+                where: { id: session.id },
+                data: { status: "COMPLETED", checksum: digest },
+            }),
+            prisma.labUploadChunk.deleteMany({ where: { sessionId: session.id } }),
+        ])
 
         return { itemId: item.id, checksum: digest }
     } catch (error) {
@@ -410,7 +407,8 @@ export async function completePortfolioUpload(input: {
 }
 
 /** Cancels a session and removes the uploaded chunks. */
-export async function cancelUploadSession(sessionId: string, userId: string) {    const session = await prisma.labUploadSession.findUnique({
+export async function cancelUploadSession(sessionId: string, userId: string) {
+    const session = await prisma.labUploadSession.findUnique({
         where: { id: sessionId },
         select: { id: true, userId: true, status: true },
     })
@@ -427,18 +425,22 @@ export async function cancelUploadSession(sessionId: string, userId: string) {  
     })
 }
 
-/** Removes the sessions that were never finished. */
+/** Free abandoned chunks in small batches when another upload starts. */
 export async function cleanupExpiredUploadSessions() {
     const expired = await prisma.labUploadSession.findMany({
-        where: { expiresAt: { lt: new Date() }, status: { in: ["PENDING", "UPLOADING"] } },
+        where: { expiresAt: { lt: new Date() }, status: { in: ["PENDING", "UPLOADING", "FAILED"] } },
         select: { id: true },
+        orderBy: { expiresAt: "asc" },
+        take: 20,
     })
     for (const session of expired) {
-        await prisma.labUploadChunk.deleteMany({ where: { sessionId: session.id } })
-        await prisma.labUploadSession.update({
-            where: { id: session.id },
-            data: { status: "EXPIRED" },
-        })
+        await prisma.$transaction([
+            prisma.labUploadChunk.deleteMany({ where: { sessionId: session.id } }),
+            prisma.labUploadSession.update({
+                where: { id: session.id },
+                data: { status: "EXPIRED" },
+            }),
+        ])
     }
     return expired.length
 }

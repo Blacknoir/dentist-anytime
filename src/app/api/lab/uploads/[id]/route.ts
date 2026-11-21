@@ -9,6 +9,8 @@ import {
 } from "@/lib/lab-uploads"
 import { prisma } from "@/lib/prisma"
 import { INPUT_FILE_KINDS, OUTPUT_FILE_KINDS, type LabFileKind } from "@/lib/lab"
+import { getOwnPortfolioOwner } from "@/lib/lab-portfolio"
+import { revalidatePath } from "next/cache"
 
 // One chunk of a file. The body is the raw binary content of the chunk.
 export async function PUT(
@@ -89,6 +91,22 @@ export async function POST(
             if (ownerType !== "DESIGNER" && ownerType !== "LAB") {
                 return NextResponse.json({ error: "Μη έγκυρος τύπος portfolio." }, { status: 400 })
             }
+            const owner = await getOwnPortfolioOwner(ownerType)
+            if (!owner || owner.userId !== actor.userId) {
+                return NextResponse.json({ error: "Δεν έχεις δικαίωμα σε αυτό το portfolio." }, { status: 403 })
+            }
+            if (session.status === "COMPLETED" && checksum?.toLowerCase() === session.checksum) {
+                const stored = await prisma.portfolioItem.findFirst({
+                    where: {
+                        id,
+                        ownerType,
+                        ...(ownerType === "DESIGNER" ? { designerProfileId: owner.id } : { labProfileId: owner.id }),
+                        storagePath: { not: "pending" },
+                    },
+                    select: { id: true },
+                })
+                if (stored) return NextResponse.json({ itemId: stored.id, checksum: session.checksum })
+            }
 
             const result = await completePortfolioUpload({
                 sessionId: id,
@@ -99,6 +117,8 @@ export async function POST(
                 description: body?.description ? String(body.description) : null,
                 category: body?.category ? String(body.category) : null,
             })
+            revalidatePath("/lab/designer/profile")
+            revalidatePath(ownerType === "DESIGNER" ? `/lab/designers/${owner.id}` : `/lab/labs/${owner.id}`)
 
             return NextResponse.json({ itemId: result.itemId, checksum: result.checksum })
         }
@@ -167,6 +187,9 @@ export async function POST(
                 return NextResponse.json({ error: "Μη έγκυρος τύπος αρχείου πελάτη." }, { status: 400 })
             }
         }
+        if (["CANCELLED", "COMPLETED"].includes(labCase.status)) {
+            return NextResponse.json({ error: "Η εργασία δεν δέχεται άλλα αρχεία." }, { status: 409 })
+        }
 
         const result = await completeUploadSession({
             sessionId: id,
@@ -176,6 +199,7 @@ export async function POST(
             kind,
             caseId,
         })
+        revalidatePath(`/lab/cases/${caseId}`)
 
         return NextResponse.json(result)
     } catch (error: any) {

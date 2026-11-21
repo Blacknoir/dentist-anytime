@@ -101,7 +101,19 @@ export async function GET(
             metadata: { fileName: file.fileName, ipAddress, userAgent },
         })
 
-        return new NextResponse(new Uint8Array(body), {
+        let offset = 0
+        const stream = new ReadableStream<Uint8Array>({
+            pull(controller) {
+                if (offset >= body.length) {
+                    controller.close()
+                    return
+                }
+                const end = Math.min(offset + 64 * 1024, body.length)
+                controller.enqueue(new Uint8Array(body.subarray(offset, end)))
+                offset = end
+            },
+        })
+        return new NextResponse(stream, {
             headers: {
                 "Content-Type": contentType || "application/octet-stream",
                 "Content-Disposition": `attachment; filename="${sanitizeFileName(file.fileName)}"`,

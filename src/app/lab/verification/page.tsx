@@ -25,7 +25,7 @@ export default async function LabVerificationPage() {
                 </Link>
                 <h1 className="text-3xl font-bold text-gray-900 mt-3">Επαλήθευση επαγγέλματος</h1>
                 <p className="text-gray-600 mt-1">
-                    Οι επαληθευμένοι οδοντίατρες και CAD designers εμφανίζουν το σήμα «Verified» στο δημόσιο
+                    Οι επαληθευμένοι οδοντίατροι και CAD designers εμφανίζουν το σήμα «Verified» στο δημόσιο
                     προφίλ τους, δίνοντας εμπιστοσύνη στους πελάτες τους.
                 </p>
 
@@ -65,7 +65,7 @@ export default async function LabVerificationPage() {
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm text-gray-600">
                         <p>
-                            • Οδοντίατρες: άδεια άσκησης, ΑΦΜ/επιχειρηματικό μητρώο, ταυτοποίηση στοιχείων.
+                            • Οδοντίατροι: άδεια άσκησης, ΑΦΜ/επιχειρηματικό μητρώο, ταυτοποίηση στοιχείων.
                             <br />• CAD designers: επαγγελματική εμπειρία, portfolio, δείγματα εργασιών και
                             ταυτοποίηση στοιχείων.
                             <br />• Το αποτέλεσμα είναι δημόσιο σήμα επαλήθευσης — δεν δημοσιεύονται τα

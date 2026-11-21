@@ -59,6 +59,11 @@ export default function NewCaseForm({ maxFileSize }: { maxFileSize: number }) {
             setError(`Το αρχείο ${tooBig.name} ξεπερνά τα ${maxSizeMb}MB.`)
             return
         }
+        const empty = next.find((file) => !file.size)
+        if (empty) {
+            setError(`Το αρχείο ${empty.name} είναι κενό.`)
+            return
+        }
         setError(null)
         setFiles(next)
     }
@@ -168,7 +173,7 @@ export default function NewCaseForm({ maxFileSize }: { maxFileSize: number }) {
             <div className="pt-24 pb-20 container mx-auto px-4 max-w-xl text-center space-y-4">
                 <h1 className="text-2xl font-bold text-gray-900">Χρειάζεται επαγγελματικό προφίλ</h1>
                 <p className="text-gray-600">
-                    Οι εργασίες CAD τις δημιουργούν οδοντίατρες και οδοντοτεχνικά εργαστήρια. Ο λογαριασμός σου
+                    Οι εργασίες CAD τις δημιουργούν οδοντίατροι και οδοντοτεχνικά εργαστήρια. Ο λογαριασμός σου
                     είναι έτοιμος — χρειάζεται μόνο η επαγγελματική ένταξη.
                 </p>
                 <Button asChild>
@@ -334,7 +339,7 @@ export default function NewCaseForm({ maxFileSize }: { maxFileSize: number }) {
                                     ref={fileInputRef}
                                     type="file"
                                     multiple
-                                    accept=".stl,.obj,.3mf,.zip,.step,.stp,.pdf,.jpg,.jpeg,.png,.dcm,.txt,.doc,.docx"
+                                    accept=".stl,.STL,.obj,.3mf,.zip,.step,.stp,.pdf,.jpg,.jpeg,.png,.dcm,.txt,.doc,.docx"
                                     onChange={(e) => handleFiles(e.target.files)}
                                     className="hidden"
                                 />

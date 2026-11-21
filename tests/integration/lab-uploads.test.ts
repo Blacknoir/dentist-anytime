@@ -9,6 +9,7 @@ vi.mock("@/auth", () => ({
 }))
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }))
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }))
 
 vi.mock("@/lib/stripe", () => ({
     stripe: {
@@ -236,6 +237,76 @@ describe("the chunked upload", () => {
                 kind: "INPUT_STL",
             })
         ).rejects.toMatchObject({ code: "FILE_TOO_LARGE" })
+    })
+
+    it("uploads a near-25 MB binary STL through the routes and downloads identical bytes", async () => {
+        const { customer, labCase } = await createCase()
+        session.userId = customer.id
+        const { POST: start } = await import("@/app/api/lab/uploads/route")
+        const { PUT: chunk, POST: finish } = await import("@/app/api/lab/uploads/[id]/route")
+        const { GET: download } = await import("@/app/api/lab/files/[id]/route")
+        const triangles = Math.floor((25 * 1024 * 1024 - 84) / 50)
+        const data = Buffer.alloc(84 + triangles * 50)
+        data.write("Binary dental scan")
+        data.writeUInt32LE(triangles, 80)
+        const request = (body: unknown) => new Request("https://www.dentora.gr/api/lab/uploads", {
+            method: "POST",
+            body: JSON.stringify(body),
+        })
+        const begin = await start(request({
+            caseId: labCase.id, fileName: "SCAN.STL", fileSize: data.length, mimeType: "", kind: "INPUT_STL",
+        }))
+        expect(begin.status).toBe(200)
+        const sessionData = await begin.json()
+        const params = { params: Promise.resolve({ id: sessionData.sessionId }) }
+        for (let index = 0; index < Math.ceil(data.length / sessionData.chunkSize); index++) {
+            const body = data.subarray(index * sessionData.chunkSize, (index + 1) * sessionData.chunkSize)
+            const response = await chunk(new Request(`https://www.dentora.gr/api/lab/uploads?id=scan&index=${index}`, {
+                method: "PUT", body, headers: { "content-type": "application/octet-stream" },
+            }), params)
+            expect(response.status).toBe(200)
+            // A chunk can be resent after its response was lost.
+            if (index === 0) {
+                expect((await chunk(new Request("https://www.dentora.gr/api/lab/uploads?index=0", {
+                    method: "PUT", body,
+                }), params)).status).toBe(200)
+            }
+        }
+        const completeBody = { caseId: labCase.id, kind: "INPUT_STL", checksum: sha256(data) }
+        const completed = await finish(request(completeBody), params)
+        expect(completed.status).toBe(200)
+        const result = await completed.json()
+        expect(await (await finish(request(completeBody), params)).json()).toEqual(result)
+        expect(await prisma.labCaseFile.count({ where: { caseId: labCase.id } })).toBe(1)
+        expect(await prisma.labUploadChunk.count({ where: { sessionId: sessionData.sessionId } })).toBe(0)
+
+        const response = await download(new Request("https://www.dentora.gr"), {
+            params: Promise.resolve({ id: result.fileId }),
+        })
+        expect(response.status).toBe(200)
+        expect(response.headers.get("content-type")).toBe("model/stl")
+        const downloaded = Buffer.from(await response.arrayBuffer())
+        expect(downloaded.length).toBe(data.length)
+        expect(sha256(downloaded)).toBe(sha256(data))
+    })
+
+    it("cleans abandoned chunks when a new transfer starts", async () => {
+        const { customer, labCase } = await createCase()
+        const { createUploadSession, appendUploadChunk } = await import("@/lib/lab-uploads")
+        const body = stl()
+        const abandoned = await createUploadSession({
+            userId: customer.id, caseId: labCase.id, fileName: "old.stl", fileSize: body.length, kind: "INPUT_STL",
+        })
+        await appendUploadChunk({ sessionId: abandoned.sessionId, userId: customer.id, index: 0, data: body })
+        await prisma.labUploadSession.update({
+            where: { id: abandoned.sessionId },
+            data: { expiresAt: new Date(Date.now() - 1000), status: "FAILED" },
+        })
+        await createUploadSession({
+            userId: customer.id, caseId: labCase.id, fileName: "new.stl", fileSize: body.length, kind: "INPUT_STL",
+        })
+        expect(await prisma.labUploadChunk.count({ where: { sessionId: abandoned.sessionId } })).toBe(0)
+        expect(await prisma.labCaseFile.count({ where: { caseId: labCase.id } })).toBe(0)
     })
 })
 

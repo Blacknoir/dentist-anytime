@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { prisma } from "@/lib/prisma"
+import { sha256 } from "@/lib/lab-crypto"
 
 const session = { userId: "" }
 
@@ -48,6 +49,8 @@ async function createUser(role: string, email: string) {
 
 describe("the portfolio of a designer", () => {
     beforeEach(async () => {
+        await prisma.labUploadChunk.deleteMany()
+        await prisma.labUploadSession.deleteMany()
         await prisma.portfolioItem.deleteMany()
         await prisma.designerProfile.deleteMany()
         await prisma.labProfile.deleteMany()
@@ -115,6 +118,61 @@ describe("the portfolio of a designer", () => {
         await reorderPortfolioItems({ ownerType: "DESIGNER", ids: [second.id, item.id] })
         const ordered = await listOwnPortfolio("DESIGNER")
         expect(ordered[0].id).toBe(second.id)
+    })
+
+    it.each(["DESIGNER", "LAB"] as const)("uploads a public image through the routes as %s", async (ownerType) => {
+        const { user } = ownerType === "DESIGNER"
+            ? await createDesigner("upload@dentora.gr")
+            : await createLab("upload@dentora.gr")
+        session.userId = user.id
+        const { POST: start } = await import("@/app/api/lab/uploads/route")
+        const { PUT: chunk, POST: finish } = await import("@/app/api/lab/uploads/[id]/route")
+        const { GET: image } = await import("@/app/api/lab/portfolio/[id]/image/route")
+        // PNG header carrying the dimensions accepted by server validation.
+        const data = Buffer.alloc(24)
+        Buffer.from("89504e470d0a1a0a", "hex").copy(data)
+        data.write("IHDR", 12)
+        data.writeUInt32BE(640, 16)
+        data.writeUInt32BE(480, 20)
+        const request = (body: unknown) => new Request("https://www.dentora.gr/api/lab/uploads", {
+            method: "POST", body: JSON.stringify(body),
+        })
+        const response = await start(request({
+            kind: "PORTFOLIO", ownerType, fileName: "crown.png", fileSize: data.length, mimeType: "image/png",
+        }))
+        expect(response.status).toBe(200)
+        const started = await response.json()
+        const params = { params: Promise.resolve({ id: started.sessionId }) }
+        expect((await chunk(new Request("https://www.dentora.gr/api/lab/uploads?index=0", {
+            method: "PUT", body: data,
+        }), params)).status).toBe(200)
+        const completeBody = { target: "portfolio", ownerType, kind: "PORTFOLIO", title: "Κορώνα", checksum: sha256(data) }
+        const result = await finish(request(completeBody), params)
+        expect(result.status).toBe(200)
+        const stored = await result.json()
+        expect(await (await finish(request(completeBody), params)).json()).toEqual(stored)
+        expect(await prisma.portfolioItem.count()).toBe(1)
+        const { listOwnPortfolio } = await import("@/app/actions/lab-portfolio")
+        expect(await listOwnPortfolio(ownerType)).toMatchObject([{ id: stored.itemId, title: "Κορώνα" }])
+        const served = await image(new Request("https://www.dentora.gr"), {
+            params: Promise.resolve({ id: stored.itemId }),
+        })
+        expect(served.headers.get("content-type")).toBe("image/png")
+        expect(Buffer.from(await served.arrayBuffer()).equals(data)).toBe(true)
+    })
+
+    it("denies portfolio sessions to patients and rejects images above 8 MB", async () => {
+        const { POST: start } = await import("@/app/api/lab/uploads/route")
+        const request = (size: number) => new Request("https://www.dentora.gr/api/lab/uploads", {
+            method: "POST", body: JSON.stringify({ kind: "PORTFOLIO", ownerType: "DESIGNER", fileName: "crown.jpg", fileSize: size }),
+        })
+        const patient = await createUser("PATIENT", "patient@dentora.gr")
+        session.userId = patient.id
+        expect((await start(request(1000))).status).toBe(403)
+        const { user } = await createDesigner("designer-limit@dentora.gr")
+        session.userId = user.id
+        expect((await start(request(8 * 1024 * 1024 + 1))).status).toBe(400)
+        expect(await prisma.labUploadSession.count()).toBe(0)
     })
 
     it("does not let another user change an item", async () => {

@@ -252,7 +252,7 @@ export async function getPortfolio(ownerType: PortfolioOwnerType, ownerId: strin
 export async function getOwnPortfolioOwner(ownerType: PortfolioOwnerType) {
     if (ownerType === "DESIGNER") {
         const actor = await import("@/lib/lab-domain").then((m) => m.getLabActor())
-        if (!actor?.designerProfileId) return null
+        if (!actor?.isDesigner || !actor.designerProfileId) return null
         return { id: actor.designerProfileId, userId: actor.userId }
     }
 
