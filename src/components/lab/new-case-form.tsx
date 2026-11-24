@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { inferFileKind, MATERIALS, PRIORITIES, SHADES, WORK_TYPES } from "@/lib/lab"
+import { formatBytes, inferFileKind, uploadSizeError, MATERIALS, PRIORITIES, SHADES, WORK_TYPES } from "@/lib/lab"
 import { uploadFileInChunks } from "@/lib/lab-upload-client"
 import { errorMessage } from "@/lib/error-message"
 import { cn } from "@/lib/utils"
@@ -54,18 +54,18 @@ export default function NewCaseForm({ maxFileSize }: { maxFileSize: number }) {
     const handleFiles = (list: FileList | null) => {
         if (!list || uploading || created) return
         const next = Array.from(list)
-        const tooBig = next.find((file) => file.size > maxFileSize)
-        if (tooBig) {
-            setError(`Το αρχείο ${tooBig.name} ξεπερνά τα ${maxSizeMb}MB.`)
-            return
+        const valid: File[] = []
+        const rejected: string[] = []
+        for (const file of next) {
+            const sizeError = uploadSizeError(file.name, file.size, maxFileSize)
+            if (sizeError) rejected.push(sizeError)
+            else valid.push(file)
         }
-        const empty = next.find((file) => !file.size)
-        if (empty) {
-            setError(`Το αρχείο ${empty.name} είναι κενό.`)
-            return
-        }
-        setError(null)
-        setFiles(next)
+        setFiles(valid)
+        setFileStates([])
+        setError(rejected.length
+            ? rejected.join(" ") + (valid.length ? " Τα υπόλοιπα αρχεία επιλέχθηκαν και μπορούν να ανέβουν." : "")
+            : null)
     }
 
     const handleSubmit = async (event: React.FormEvent) => {
@@ -341,6 +341,7 @@ export default function NewCaseForm({ maxFileSize }: { maxFileSize: number }) {
                                     multiple
                                     accept=".stl,.STL,.obj,.3mf,.zip,.step,.stp,.pdf,.jpg,.jpeg,.png,.dcm,.txt,.doc,.docx"
                                     onChange={(e) => handleFiles(e.target.files)}
+                                    aria-label="Επιλογή αρχείων εργασίας"
                                     className="hidden"
                                 />
                                 <div
@@ -385,7 +386,7 @@ export default function NewCaseForm({ maxFileSize }: { maxFileSize: number }) {
                                                         </span>
                                                         <span className="flex items-center gap-3">
                                                             <span className="text-xs text-gray-400">
-                                                                {(file.size / 1024 / 1024).toFixed(1)} MB
+                                                                {formatBytes(file.size)}
                                                                 {state?.status === "uploading"
                                                                     ? ` · ${state.progress}%`
                                                                     : ""}

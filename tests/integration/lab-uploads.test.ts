@@ -239,13 +239,13 @@ describe("the chunked upload", () => {
         ).rejects.toMatchObject({ code: "FILE_TOO_LARGE" })
     })
 
-    it("uploads a near-25 MB binary STL through the routes and downloads identical bytes", async () => {
+    it.each([32 * 1024, 25 * 1024 * 1024])("uploads a binary STL near %i bytes and downloads identical bytes", async (targetBytes) => {
         const { customer, labCase } = await createCase()
         session.userId = customer.id
         const { POST: start } = await import("@/app/api/lab/uploads/route")
         const { PUT: chunk, POST: finish } = await import("@/app/api/lab/uploads/[id]/route")
         const { GET: download } = await import("@/app/api/lab/files/[id]/route")
-        const triangles = Math.floor((25 * 1024 * 1024 - 84) / 50)
+        const triangles = Math.floor((targetBytes - 84) / 50)
         const data = Buffer.alloc(84 + triangles * 50)
         data.write("Binary dental scan")
         data.writeUInt32LE(triangles, 80)

@@ -10,7 +10,7 @@ import "server-only"
 import { prisma } from "@/lib/prisma"
 import { sha256 } from "@/lib/lab-crypto"
 import { getLabStorageProvider, hasAcceptedExtension, storeLabFile, MAX_UPLOAD_BYTES, MAX_DATABASE_UPLOAD_BYTES } from "@/lib/lab-storage"
-import { INPUT_FILE_KINDS, OUTPUT_FILE_KINDS, type LabFileKind } from "@/lib/lab"
+import { INPUT_FILE_KINDS, OUTPUT_FILE_KINDS, uploadSizeError, type LabFileKind } from "@/lib/lab"
 import { LabActionError } from "@/lib/lab-domain"
 import { MAX_PORTFOLIO_IMAGE_BYTES } from "@/lib/lab-portfolio"
 
@@ -78,13 +78,11 @@ export async function createUploadSession(input: {
     if (input.kind !== "PORTFOLIO" && !hasAcceptedExtension(input.fileName)) {
         throw new LabActionError("VALIDATION", "Ο τύπος του αρχείου δεν υποστηρίζεται.")
     }
-    if (!Number.isSafeInteger(input.fileSize) || input.fileSize <= 0) {
-        throw new LabActionError("VALIDATION", "Το αρχείο είναι κενό.")
-    }
-    if (input.fileSize > maxFileSize) {
+    const sizeError = uploadSizeError(input.fileName, input.fileSize, maxFileSize)
+    if (sizeError) {
         throw new LabActionError(
-            "FILE_TOO_LARGE",
-            `Το αρχείο ξεπερνά το όριο των ${Math.round(maxFileSize / (1024 * 1024))}MB.`
+            input.fileSize > maxFileSize ? "FILE_TOO_LARGE" : "VALIDATION",
+            sizeError
         )
     }
     if (input.kind) assertUploadKind(input.kind)

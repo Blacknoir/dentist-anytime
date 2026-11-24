@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Loader2, RotateCcw, Upload } from "lucide-re
 import { Button } from "@/components/ui/button"
 import { uploadFileInChunks } from "@/lib/lab-upload-client"
 import { errorMessage } from "@/lib/error-message"
+import { formatBytes } from "@/lib/lab"
 
 // Client side of the chunked upload.
 //
@@ -175,6 +176,7 @@ export function ChunkedUploader({
                                         <Loader2 className="h-4 w-4 text-primary-600 animate-spin shrink-0" />
                                     )}
                                     <span className="truncate">{item.name}</span>
+                                    <span className="text-xs text-gray-500 shrink-0">{formatBytes(item.size)}</span>
                                 </span>
                                 <span className="text-xs text-gray-500 shrink-0">
                                     {item.status === "uploading" || item.status === "processing"

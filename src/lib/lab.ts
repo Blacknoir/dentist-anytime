@@ -259,6 +259,17 @@ export function formatBytes(bytes: number) {
     return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }
 
+/** File sizes from the browser and API are always compared in bytes. */
+export function uploadSizeError(fileName: string, sizeBytes: number, limitBytes: number) {
+    if (!Number.isSafeInteger(sizeBytes) || sizeBytes <= 0) {
+        return `Το αρχείο ${fileName} είναι κενό ή δεν έχει έγκυρο μέγεθος.`
+    }
+    if (sizeBytes > limitBytes) {
+        return `Το αρχείο ${fileName} είναι ${formatBytes(sizeBytes)} (${sizeBytes.toLocaleString("el-GR")} bytes). Το όριο είναι ${formatBytes(limitBytes)} ανά αρχείο.`
+    }
+    return null
+}
+
 export function initials(name?: string | null) {
     if (!name) return "CD"
     return name

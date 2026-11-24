@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { computeSplit, euros, formatDate, formatDateTime, redactContactDetails } from "@/lib/lab"
+import { computeSplit, euros, formatBytes, formatDate, formatDateTime, redactContactDetails, uploadSizeError } from "@/lib/lab"
 import { sanitizeRedirectUrl } from "@/lib/auth-redirect"
 import { decryptBuffer, encryptBuffer, isEncryptedPayload, sha256 } from "@/lib/lab-crypto"
 import {
@@ -91,6 +91,21 @@ describe("encryption of the files", () => {
 })
 
 describe("limits of the upload", () => {
+    it("accepts a 32 KB STL and reports its size in KB", () => {
+        expect(uploadSizeError("small.stl", 32 * 1024, 25 * 1024 * 1024)).toBeNull()
+        expect(formatBytes(32 * 1024)).toBe("32.0 KB")
+        expect(uploadSizeError("exact-limit.stl", 25 * 1024 * 1024, 25 * 1024 * 1024)).toBeNull()
+    })
+
+    it("identifies the actual oversized file and byte count", () => {
+        const size = 32 * 1024 * 1024
+        const error = uploadSizeError("large.stl", size, 25 * 1024 * 1024)
+        expect(error).toContain("large.stl")
+        expect(error).toContain("32.0 MB")
+        expect(error).toContain(size.toLocaleString("el-GR") + " bytes")
+        expect(error).toContain("25.0 MB")
+    })
+
     it("uses the smaller limit when the storage is the database", () => {
         const limits = getUploadLimits()
         expect(limits.chunkSize).toBeGreaterThan(0)
